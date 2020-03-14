@@ -17,3 +17,25 @@ dependencies {
   implementation 'io.netty:netty-codec:4.1.47.Final'
   implementation 'io.netty:netty-codec-http2:4.1.47.Final'  
 }
+
+
+apply plugin: 'maven-publish'
+
+publishing {
+  repositories {
+    maven {
+      name = "GitHubPackages"
+      url = uri("https://maven.pkg.github.com/netlibs/io.netlibs.ami")
+      credentials {
+        username = System.getenv("GITHUB_ACTOR")
+        password = System.getenv("GITHUB_TOKEN")
+      }
+    }
+  }
+  publications {
+    gpr(MavenPublication) {
+      from(components.java)
+    }
+  }
+}
+

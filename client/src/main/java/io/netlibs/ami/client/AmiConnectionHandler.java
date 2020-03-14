@@ -10,6 +10,7 @@ import io.netlbs.ami.AmiMessage;
 import io.netlbs.ami.netty.DefaultAmiFrame;
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.processors.BehaviorProcessor;
 import io.reactivex.rxjava3.processors.MulticastProcessor;
 
 public class AmiConnectionHandler {
@@ -93,6 +94,10 @@ public class AmiConnectionHandler {
 
   public static AmiConnectionHandler create(NettyAmiTransport ch, AmiCredentials credentials) {
     return new AmiConnectionHandler(ch, credentials);
+  }
+
+  public void subscribeWith(BehaviorProcessor<AmiMessage> subscriber) {
+    this.events.subscribeWith(subscriber);
   }
 
 }

@@ -13,8 +13,11 @@ allprojects { project ->
   }
 
   project.plugins.withId('java') {
+  
     sourceCompatibility = 9
     targetCompatibility = 9
+  
+    
   }
 
   project.apply plugin: 'eclipse'
