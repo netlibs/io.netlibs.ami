@@ -1,0 +1,6 @@
+
+rootProject.name = 'netlibs-ami'
+
+include 'api'
+include 'netty'
+include 'client'

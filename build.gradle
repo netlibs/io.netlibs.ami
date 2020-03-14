@@ -1,0 +1,38 @@
+plugins {
+  id 'eclipse'
+  id 'net.ltgt.apt-eclipse' version '0.21'
+}
+
+allprojects { project ->
+
+  group = 'io.netlibs.ami'
+  version = 'master-SNAPSHOT'
+
+  repositories {
+      jcenter()
+  }
+
+  project.plugins.withId('java') {
+    sourceCompatibility = 9
+    targetCompatibility = 9
+  }
+
+  project.apply plugin: 'eclipse'
+  project.apply from: "${rootDir}/gradle/eclipse.gradle"
+
+}
+
+task configureBuildship {
+}
+
+eclipse.project.name = 'netlibs:ami'
+eclipse.synchronizationTasks configureBuildship
+
+wrapper {
+  gradleVersion = '6.2.2'
+  doLast {
+    delete "${projectDir}/gradlew.bat"
+  }
+}
+
+

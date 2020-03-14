@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+  implementation 'com.google.guava:guava:28.2-jre'
+  implementation 'org.slf4j:slf4j-api:1.7.30'
+}
+
+dependencies {
+  api project(':api')
+}
+
+dependencies {
+  implementation 'io.netty:netty-handler:4.1.47.Final'
+  api 'io.netty:netty-transport:4.1.47.Final'
+  implementation 'io.netty:netty-codec:4.1.47.Final'
+  implementation 'io.netty:netty-codec-http2:4.1.47.Final'  
+}
