@@ -1,4 +1,4 @@
-package io.netlbs.ami;
+package io.netlibs.ami.api;
 
 public interface AmiMessage {
 

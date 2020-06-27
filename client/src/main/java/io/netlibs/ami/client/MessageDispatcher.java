@@ -1,7 +1,7 @@
 package io.netlibs.ami.client;
 
-import io.netlbs.ami.AmiFrame;
-import io.netlbs.ami.AmiMessage;
+import io.netlibs.ami.api.AmiFrame;
+import io.netlibs.ami.api.AmiMessage;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.reactivex.rxjava3.processors.FlowableProcessor;

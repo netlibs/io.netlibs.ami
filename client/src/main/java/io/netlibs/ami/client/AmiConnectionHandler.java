@@ -4,10 +4,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import io.netlbs.ami.AmiChannelStatusMessage;
-import io.netlbs.ami.AmiFrame;
-import io.netlbs.ami.AmiMessage;
-import io.netlbs.ami.netty.DefaultAmiFrame;
+import io.netlibs.ami.api.AmiChannelStatusMessage;
+import io.netlibs.ami.api.AmiFrame;
+import io.netlibs.ami.api.AmiMessage;
+import io.netlibs.ami.netty.DefaultAmiFrame;
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.processors.BehaviorProcessor;

@@ -1,4 +1,4 @@
-package io.netlbs.ami.netty;
+package io.netlibs.ami.netty;
 
 import static io.netty.handler.codec.http.HttpConstants.COLON;
 import static io.netty.handler.codec.http.HttpConstants.CR;
@@ -8,8 +8,8 @@ import static io.netty.handler.codec.http.HttpConstants.SP;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
-import io.netlbs.ami.AmiFrame;
-import io.netlbs.ami.AmiVersion;
+import io.netlibs.ami.api.AmiFrame;
+import io.netlibs.ami.api.AmiVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;

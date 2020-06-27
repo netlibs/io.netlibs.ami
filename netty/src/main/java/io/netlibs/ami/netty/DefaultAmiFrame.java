@@ -1,10 +1,10 @@
-package io.netlbs.ami.netty;
+package io.netlibs.ami.netty;
 
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 import java.util.function.BiConsumer;
 
-import io.netlbs.ami.AmiFrame;
+import io.netlibs.ami.api.AmiFrame;
 import io.netty.handler.codec.CharSequenceValueConverter;
 import io.netty.handler.codec.DefaultHeaders;
 import io.netty.handler.codec.DefaultHeadersImpl;

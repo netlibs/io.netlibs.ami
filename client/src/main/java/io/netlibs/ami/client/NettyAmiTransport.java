@@ -8,8 +8,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.net.HostAndPort;
 
-import io.netlbs.ami.AmiFrame;
-import io.netlbs.ami.AmiMessage;
+import io.netlibs.ami.api.AmiFrame;
+import io.netlibs.ami.api.AmiMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;

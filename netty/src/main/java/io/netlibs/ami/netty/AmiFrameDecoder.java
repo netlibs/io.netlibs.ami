@@ -1,11 +1,11 @@
-package io.netlbs.ami.netty;
+package io.netlibs.ami.netty;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import com.google.common.base.Splitter;
 import com.google.common.base.Splitter.MapSplitter;
 
-import io.netlbs.ami.AmiVersion;
+import io.netlibs.ami.api.AmiVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;

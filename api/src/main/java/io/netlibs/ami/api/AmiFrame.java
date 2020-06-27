@@ -1,4 +1,4 @@
-package io.netlbs.ami;
+package io.netlibs.ami.api;
 
 import java.util.Iterator;
 import java.util.Map.Entry;

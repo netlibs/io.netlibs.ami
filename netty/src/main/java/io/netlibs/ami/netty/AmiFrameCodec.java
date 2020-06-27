@@ -1,6 +1,6 @@
-package io.netlbs.ami.netty;
+package io.netlibs.ami.netty;
 
-import io.netlbs.ami.AmiVersion;
+import io.netlibs.ami.api.AmiVersion;
 import io.netty.channel.CombinedChannelDuplexHandler;
 
 public class AmiFrameCodec extends CombinedChannelDuplexHandler<AmiFrameDecoder, AmiFrameEncoder> {

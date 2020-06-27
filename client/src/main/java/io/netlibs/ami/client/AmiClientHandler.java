@@ -2,10 +2,10 @@ package io.netlibs.ami.client;
 
 import java.nio.charset.StandardCharsets;
 
-import io.netlbs.ami.AmiChannelStatusMessage;
-import io.netlbs.ami.AmiMessage;
-import io.netlbs.ami.AmiVersion;
-import io.netlbs.ami.netty.AmiFrameCodec;
+import io.netlibs.ami.api.AmiChannelStatusMessage;
+import io.netlibs.ami.api.AmiMessage;
+import io.netlibs.ami.api.AmiVersion;
+import io.netlibs.ami.netty.AmiFrameCodec;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
