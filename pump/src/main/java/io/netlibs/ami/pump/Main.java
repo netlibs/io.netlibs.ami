@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -22,7 +21,6 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -70,7 +68,7 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "-f" }, description = "path to asterisk manager.conf to read credentails from")
   private Path configPath;
-  
+
   @Option(names = { "-t" }, description = "target to connect to", defaultValue = "localhost")
   private String targetHost;
 
@@ -82,6 +80,9 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "-k" }, description = "AWS Kinesis partition to write to (default uses SystemName in frames)")
   private Optional<String> partitionKey = Optional.empty();
+
+  // instance reference on start
+  private Instant referenceTime = Instant.now();
 
   public HostAndPort target() {
 
@@ -247,6 +248,16 @@ public class Main implements Callable<Integer> {
 
         }
 
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+          System.err.println(cause);
+          cause.printStackTrace();
+          if (ctx.channel().isOpen() && !closed) {
+            closed = true;
+            ctx.channel().close();
+          }
+        }
+
       });
 
       // fire off an initial read.
@@ -326,7 +337,7 @@ public class Main implements Callable<Integer> {
   }
 
   private String getStableInstanceID() {
-    if (this.instanceId != null && !this.instanceId.isEmpty()) {
+    if ((this.instanceId != null) && !this.instanceId.isEmpty()) {
       return this.instanceId;
     }
     try {
