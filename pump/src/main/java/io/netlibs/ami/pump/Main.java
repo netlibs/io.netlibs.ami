@@ -22,7 +22,9 @@ import com.amazonaws.services.kinesis.producer.UserRecordResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 
@@ -52,6 +54,9 @@ import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sns.SnsAsyncClient;
+import software.amazon.awssdk.services.sns.model.MessageAttributeValue;
 
 public class Main implements Callable<Integer> {
 
@@ -100,6 +105,11 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "--kinesis-record-ttl" }, description = "max time a record is valid before dropping (and thus restarting).", defaultValue = "PT30S")
   private Duration kinesisRecordTimeToLive;
+
+  @Option(names = { "--sns-control" }, description = "post control events to this sns topic arn.")
+  private String snsControlEvents;
+
+  private SnsAsyncClient sns;
 
   public HostAndPort target() {
 
@@ -156,9 +166,11 @@ public class Main implements Callable<Integer> {
 
     }
 
+    Region region = new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion();
+
     ImmutableKinesisConfig.Builder kcb =
       ImmutableKinesisConfig.builder()
-        .region(new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion().id())
+        .region(region.id())
         .streamName(streamName);
 
     kcb.threadPoolSize(this.kinesisThreads);
@@ -171,6 +183,16 @@ public class Main implements Callable<Integer> {
     AwsCredentialsProvider credentialsProvider = DefaultCredentialsProvider.create();
 
     KinesisClient kinesis = new KinesisClient(kinesisConfig, new CredentialsProviderSupplier(credentialsProvider));
+
+    //
+
+    if (!Strings.isNullOrEmpty(this.snsControlEvents)) {
+      this.sns =
+        SnsAsyncClient.builder()
+          .credentialsProvider(credentialsProvider)
+          .region(region)
+          .build();
+    }
 
     //
     ObjectMapper mapper = ObjectMapperFactory.objectMapper();
@@ -217,6 +239,8 @@ public class Main implements Callable<Integer> {
 
           })
           .collect(Collectors.joining(", ")));
+
+      notifyInit("INIT", pumpId, res);
 
     }
     catch (Throwable t) {
@@ -354,6 +378,45 @@ public class Main implements Callable<Integer> {
 
     return 0;
 
+  }
+
+  private void notifyInit(String string, ImmutablePumpId pumpId, @NonNull UserRecordResult res) {
+    if (this.sns == null) {
+      return;
+    }
+    try {
+      ObjectNode metadata = JsonNodeFactory.instance.objectNode();
+      this.sns.publish(req -> req
+        .topicArn(this.snsControlEvents)
+        .messageAttributes(ImmutableMap
+          .of(
+            "FS.PUMP.EVENT",
+            MessageAttributeValue.builder().stringValue("INIT").build(),
+            "FS.PUMP.ID",
+            MessageAttributeValue.builder().stringValue(pumpId.id()).build(),
+            "FS.PUMP.EPOCH",
+            MessageAttributeValue.builder().stringValue(Long.toString(pumpId.epoch())).build(),
+            "FS.PUMP.SHARD",
+            MessageAttributeValue.builder().stringValue(res.getShardId()).build(),
+            "FS.PUMP.SEQ",
+            MessageAttributeValue.builder().stringValue(res.getSequenceNumber()).build()
+          //
+          ))
+        .message(metadata.toString()))
+        .handle((snsres, err) -> {
+          if (err != null) {
+            log.info("failed to notify SNS", err.getMessage(), err);
+          }
+          else {
+            log.info("published to SNS, messageId {}", snsres.messageId());
+          }
+          return null;
+        });
+    }
+    catch (Exception ex) {
+      log.warn("failed to notify SNS: {}", ex.getMessage(), ex);
+      // don't exit on failure here, ignore but log.
+    }
   }
 
   private ImmutableAmiCredentials credentials() {

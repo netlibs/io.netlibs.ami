@@ -27,7 +27,8 @@ dependencies {
   implementation 'org.slf4j:slf4j-api:1.7.30'
   implementation platform('software.amazon.awssdk:bom:2.13.68')
   implementation 'software.amazon.awssdk:auth'
-  implementation 'software.amazon.awssdk:sts'    
+  implementation 'software.amazon.awssdk:sts'
+  implementation 'software.amazon.awssdk:sns'
   implementation 'info.picocli:picocli:4.5.0'  
 }
 
