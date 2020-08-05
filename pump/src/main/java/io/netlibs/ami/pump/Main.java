@@ -17,10 +17,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.ini4j.Ini;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -37,6 +33,8 @@ import io.netlibs.ami.pump.event.ImmutableKinesisEvent;
 import io.netlibs.ami.pump.event.KinesisEvent;
 import io.netlibs.ami.pump.model.ImmutablePumpId;
 import io.netlibs.ami.pump.model.ImmutableSourceInfo;
+import io.netlibs.ami.pump.utils.CredentialsProviderSupplier;
+import io.netlibs.ami.pump.utils.ImmutableKinesisConfig;
 import io.netlibs.ami.pump.utils.KinesisClient;
 import io.netlibs.ami.pump.utils.ObjectMapperFactory;
 import io.netty.channel.Channel;
@@ -48,9 +46,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public class Main implements Callable<Integer> {
@@ -91,6 +87,15 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "--read-timeout" }, description = "read idle seconds to wait for events before terminating.", defaultValue = "PT15S")
   private Duration readIdle;
+
+  @Option(names = { "--kinesis-threads" }, description = "number of kinesis producer threads.", defaultValue = "0")
+  private int kinesisThreads;
+
+  @Option(names = { "--kinesis-buffer-time" }, description = "target min local buffer time before submitting batch.", defaultValue = "PT0.1S")
+  private Duration kinesisMaxBufferTime;
+
+  @Option(names = { "--kinesis-record-ttl" }, description = "max time a record is valid before dropping (and thus restarting).", defaultValue = "PT30S")
+  private Duration kinesisRecordTimeToLive;
 
   public HostAndPort target() {
 
@@ -147,32 +152,21 @@ public class Main implements Callable<Integer> {
 
     }
 
+    ImmutableKinesisConfig.Builder kcb =
+      ImmutableKinesisConfig.builder()
+        .region(new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion().id())
+        .streamName(streamName);
+
+    kcb.threadPoolSize(this.kinesisThreads);
+    kcb.recordMaxBufferedTime(this.kinesisMaxBufferTime);
+    kcb.recordTtl(this.kinesisRecordTimeToLive);
+
     //
+    ImmutableKinesisConfig kinesisConfig = kcb.build();
 
     AwsCredentialsProvider credentialsProvider = DefaultCredentialsProvider.create();
 
-    KinesisClient kinesis = new KinesisClient(new AWSCredentialsProvider() {
-
-      @Override
-      public void refresh() {
-        // background handled in aws-sdk 2.0.
-      }
-
-      @Override
-      public AWSCredentials getCredentials() {
-
-        AwsCredentials creds = credentialsProvider.resolveCredentials();
-
-        if (creds instanceof AwsSessionCredentials) {
-          AwsSessionCredentials sessionCreds = (AwsSessionCredentials) creds;
-          return new BasicSessionCredentials(sessionCreds.accessKeyId(), sessionCreds.secretAccessKey(), sessionCreds.sessionToken());
-        }
-
-        return new BasicAWSCredentials(creds.accessKeyId(), creds.secretAccessKey());
-
-      }
-
-    }, new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion().id(), streamName);
+    KinesisClient kinesis = new KinesisClient(kinesisConfig, new CredentialsProviderSupplier(credentialsProvider));
 
     //
     ImmutablePumpId pumpId = ImmutablePumpId.of(getStableInstanceID(), System.currentTimeMillis());
@@ -222,24 +216,24 @@ public class Main implements Callable<Integer> {
               IdleStateEvent e = (IdleStateEvent) evt;
               log.info("idle event {}", e);
               if (e.state() == IdleState.READER_IDLE) {
-                log.info("reader was idle for too long, closing connection");
+                log.info("reader was idle for too long ({}), closing connection", readIdle);
                 this.closed = true;
                 ctx.close();
               }
               else if (e.state() == IdleState.ALL_IDLE) {
                 // no read or writes for the interval, so send ping.
-
+                log.info("no read or write for {}, sending ping", pingInterval);
                 sendPing(ctx);
               }
             }
           }
 
           private void sendPing(ChannelHandlerContext ctx) {
-            log.debug("sending ping");
+            log.info("sending ping");
             DefaultAmiFrame pingFrame = DefaultAmiFrame.newFrame();
             pingFrame.add("Action", "Ping");
             pingFrame.add("ActionID", Long.toHexString(nextActionId.incrementAndGet()));
-            ch.writeAndFlush(pingFrame);
+            ctx.writeAndFlush(pingFrame);
           }
 
           @Override

@@ -25,7 +25,7 @@ public class KinesisClient {
 
   @Value.Immutable
   @JsonDeserialize(builder = ImmutableKinesisAggregationConfig.Builder.class)
-  interface KinesisAggregationConfig {
+  public interface KinesisAggregationConfig {
 
     Optional<Boolean> enabled();
 
@@ -37,7 +37,7 @@ public class KinesisClient {
 
   @Value.Immutable
   @JsonDeserialize(builder = ImmutableKinesisConfig.Builder.class)
-  interface KinesisConfig {
+  public interface KinesisConfig {
 
     String region();
 
@@ -60,8 +60,12 @@ public class KinesisClient {
   }
 
   public KinesisClient(AWSCredentialsProvider credentialsProvider, String region, String streamName) {
+    this(ImmutableKinesisConfig.builder().region(region).streamName(streamName).build(), credentialsProvider);
+  }
+
+  public KinesisClient(KinesisConfig config, AWSCredentialsProvider credentialsProvider) {
     this.credentialsProvider = credentialsProvider;
-    applyConfig(ImmutableKinesisConfig.builder().region(region).streamName(streamName).build());
+    applyConfig(config);
   }
 
   private void applyConfig(KinesisConfig settings) {
