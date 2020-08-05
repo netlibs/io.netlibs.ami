@@ -194,7 +194,6 @@ public class Main implements Callable<Integer> {
             if (msg instanceof AmiFrame) {
 
               AmiFrame frame = (AmiFrame) msg;
-              System.err.println(msg);
 
               CharSequence res = frame.get("Response");
 
@@ -208,35 +207,41 @@ public class Main implements Callable<Integer> {
 
               }
 
-              try {
-                ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
-                String output = mapper.writeValueAsString(e) + "\n";
-                String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
-                kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
-              }
-              catch (JsonProcessingException e) {
-                e.printStackTrace();
-              }
+              ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+              String output = mapper.writeValueAsString(e) + "\n";
+              String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
+              kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
 
             }
 
           }
+          catch (Exception e) {
 
+            // close, so we can restart with clean state.
+            closed = true;
+            ctx.channel().close();
+
+          }
           finally {
 
-            // always read more.
-            if (!closed)
+            if (!closed) {
+              // always read more, as long as we are not closed.
               ctx.read();
+            }
+
           }
 
         }
 
       });
 
-      while (ch.isOpen()) {
-        ch.read();
-      }
+      // fire off an initial read.
+      ch.read();
+
+      ch.closeFuture().awaitUninterruptibly();
+
       System.err.println("closed");
+
     }
     finally {
       kinesis.flushSync();
