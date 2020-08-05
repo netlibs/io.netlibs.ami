@@ -4,15 +4,20 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.concurrent.ExecutionException;
 
 import org.immutables.value.Value;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.kinesis.producer.KinesisProducer;
 import com.amazonaws.services.kinesis.producer.KinesisProducerConfiguration;
+import com.amazonaws.services.kinesis.producer.UserRecordResult;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import io.reactivex.rxjava3.processors.BehaviorProcessor;
+import io.reactivex.rxjava3.subjects.SingleSubject;
 
 public class KinesisClient {
 
@@ -118,6 +123,27 @@ public class KinesisClient {
 
   public void add(String partitionKey, ByteBuffer data) {
     queue.onNext(() -> this.producer.addUserRecord(this.streamName, partitionKey, data));
+  }
+
+  public SingleSubject<UserRecordResult> addAsync(String partitionKey, ByteBuffer data) {
+    SingleSubject<UserRecordResult> res = SingleSubject.create();
+    queue.onNext(() -> {
+      ListenableFuture<UserRecordResult> rr = this.producer.addUserRecord(this.streamName, partitionKey, data);
+      rr.addListener(
+        () -> {
+          try {
+            res.onSuccess(rr.get());
+          }
+          catch (ExecutionException e) {
+            res.onError(e.getCause());
+          }
+          catch (Throwable e) {
+            res.onError(e);
+          }
+        },
+        MoreExecutors.directExecutor());
+    });
+    return res;
   }
 
   public void flushSync() {

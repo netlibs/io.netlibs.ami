@@ -14,9 +14,11 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import org.ini4j.Ini;
 
+import com.amazonaws.services.kinesis.producer.UserRecordResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -44,6 +46,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.subjects.SingleSubject;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -169,10 +173,56 @@ public class Main implements Callable<Integer> {
     KinesisClient kinesis = new KinesisClient(kinesisConfig, new CredentialsProviderSupplier(credentialsProvider));
 
     //
+    ObjectMapper mapper = ObjectMapperFactory.objectMapper();
+
+    //
     ImmutablePumpId pumpId = ImmutablePumpId.of(getStableInstanceID(), System.currentTimeMillis());
     ObjectNode pump = JsonNodeFactory.instance.objectNode();
     pump.put("id", pumpId.id());
     pump.put("epoch", pumpId.epoch());
+
+    //
+    AtomicLong seqno = new AtomicLong();
+
+    try {
+
+      DefaultAmiFrame frame = DefaultAmiFrame.newFrame();
+      ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+      String output = mapper.writeValueAsString(e) + "\n";
+
+      SingleSubject<UserRecordResult> initialEvent = kinesis.addAsync(pumpId.id(), ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
+
+      // before attempting connection, make sure we can post.
+
+      @NonNull
+      UserRecordResult res = initialEvent.blockingGet();
+
+      log.info(
+        "submitted kinesis event seq {}, shard {}, {} attempts {}",
+        res.getSequenceNumber(),
+        res.getShardId(),
+        res.getAttempts().size(),
+        res.getAttempts()
+          .stream()
+          .map(a -> {
+
+            Duration delay = Duration.ofMillis(a.getDelay());
+            Duration duration = Duration.ofMillis(a.getDuration());
+
+            if (a.getErrorCode() == null) {
+              return String.format("(%s delay, %s duration)", delay, duration);
+            }
+
+            return String.format("(%s delay, %s duration with error %s '%s')", delay, duration, a.getErrorCode(), a.getErrorMessage());
+
+          })
+          .collect(Collectors.joining(", ")));
+
+    }
+    catch (Throwable t) {
+      log.error("failed to post initial kinesis event: {}", t.getMessage(), t);
+      return 99;
+    }
     //
 
     NioEventLoopGroup eventLoop = new NioEventLoopGroup(1);
@@ -181,12 +231,10 @@ public class Main implements Callable<Integer> {
 
       CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, target(), Duration.ofSeconds(5));
 
-      ObjectMapper mapper = ObjectMapperFactory.objectMapper();
-
       // includes negotiation
       Channel ch = connector.get(10, TimeUnit.SECONDS);
 
-      log.info("connected");
+      log.info("connected to '{}'", pumpId.id());
 
       ImmutableAmiCredentials credentials = this.credentials();
 
@@ -198,8 +246,6 @@ public class Main implements Callable<Integer> {
       loginFrame.add("Username", credentials.username());
       loginFrame.add("Secret", credentials.secret());
       ch.writeAndFlush(loginFrame);
-
-      AtomicLong seqno = new AtomicLong();
 
       if ((this.pingInterval != null) || (this.readIdle != null)) {
         ch.pipeline().addLast(new IdleStateHandler(this.readIdle.toMillis(), 0, this.pingInterval.toMillis(), TimeUnit.MILLISECONDS));
@@ -261,8 +307,7 @@ public class Main implements Callable<Integer> {
 
               ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
               String output = mapper.writeValueAsString(e) + "\n";
-              String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
-              kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
+              kinesis.add(pumpId.id(), ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
 
             }
 
@@ -348,7 +393,7 @@ public class Main implements Callable<Integer> {
     }
 
     return ImmutableKinesisEvent.builder()
-      .source(ImmutableSourceInfo.of(sourceId, seqno.incrementAndGet()))
+      .source(ImmutableSourceInfo.of(sourceId, seqno.getAndIncrement()))
       .payload(jevt)
       .build();
 
