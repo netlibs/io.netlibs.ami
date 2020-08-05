@@ -13,5 +13,5 @@ RUN gradle runtime --no-daemon --console plain
 ## create target image.
 FROM debian:stable-slim
 RUN mkdir /app
-COPY --from=build /home/gradle/src/pump/build/image /app/
+COPY --from=build /home/gradle/src/pump/build/image/pump-linux-x64 /app/
 ENTRYPOINT [ "/app/bin/pump" ]
