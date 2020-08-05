@@ -44,20 +44,21 @@ public class AmiFrameDecoder extends SimpleChannelInboundHandler<ByteBuf> {
       int idx = line.indexOf(':');
 
       if (idx == -1) {
-        if (errors == null)
+        if (errors == null) {
           errors = new ArrayList<>();
+        }
         errors.add(line);
         continue;
       }
 
-      String name = line.substring(idx).trim();
+      String name = line.substring(0, idx).trim();
       String value = line.substring(idx + 1).trim();
 
       if (frame.contains(name)) {
         List<CharSequence> existing = frame.getAll(name);
         if (existing.contains(value)) {
+          // just duplicate with same value, ignore.
           log.debug("duplicate value for header '{}': '{}'", name, value);
-          // just duplicate wiht same value, ignore.
           return;
         }
         log.warn("duplicate key '{}', values: {}, adding '{}'", name, frame.getAll(name), value);
