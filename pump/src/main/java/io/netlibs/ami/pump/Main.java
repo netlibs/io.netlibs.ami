@@ -114,6 +114,9 @@ public class Main implements Callable<Integer> {
   @Option(names = { "--sns-control" }, description = "post control events to this sns topic arn.")
   private String snsControlEvents;
 
+  @Option(names = { "--sns-attr-prefix" }, description = "message attribute prefix")
+  private Optional<String> messageAttrPrefix;
+
   private SnsAsyncClient sns;
 
   public HostAndPort target() {
@@ -393,33 +396,34 @@ public class Main implements Callable<Integer> {
     if (this.sns == null) {
       return;
     }
+    String prefix = this.messageAttrPrefix.map(val -> Strings.nullToEmpty(val)).orElse("");
     try {
       ObjectNode metadata = JsonNodeFactory.instance.objectNode();
       this.sns.publish(req -> req
         .topicArn(this.snsControlEvents)
         .messageAttributes(ImmutableMap
           .of(
-            "FS.PUMP.EVENT",
+            String.format("%sEvent", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue("INIT")
               .build(),
-            "FS.PUMP.ID",
+            String.format("%sId", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue(pumpId.id())
               .build(),
-            "FS.PUMP.EPOCH",
+            String.format("%sEpoch", prefix),
             MessageAttributeValue.builder()
               .dataType("Number")
               .stringValue(Long.toString(pumpId.epoch()))
               .build(),
-            "FS.PUMP.SHARD",
+            String.format("%sShardId", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue(res.getShardId())
               .build(),
-            "FS.PUMP.SEQ",
+            String.format("%sSequenceNumber", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue(res.getSequenceNumber())
