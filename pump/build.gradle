@@ -23,10 +23,7 @@ runtime {
     
   targetPlatform("linux-x64") {
     jdkHome = jdkDownload('https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jre_x64_linux_hotspot_14.0.2_12.tar.gz') {
-      downloadDir = "$buildDir/linux-x64"
-      archiveName = "linux-x64-jdk"
       archiveExtension = "tar.gz"
-      overwrite = true
     }
   }
 
