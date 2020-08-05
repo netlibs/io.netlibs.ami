@@ -43,6 +43,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -51,6 +54,8 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public class Main implements Callable<Integer> {
+
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Main.class);
 
   // if not specified, where to search.
   private static final ImmutableList<String> managerSerchPaths =
@@ -81,8 +86,11 @@ public class Main implements Callable<Integer> {
   @Option(names = { "-k" }, description = "AWS Kinesis partition to write to (default uses SystemName in frames)")
   private Optional<String> partitionKey = Optional.empty();
 
-  // instance reference on start
-  private Instant referenceTime = Instant.now();
+  @Option(names = { "--ping-interval" }, description = "keepalive interval (in seconds).", defaultValue = "PT5S")
+  private Duration pingInterval;
+
+  @Option(names = { "--read-timeout" }, description = "read idle seconds to wait for events before terminating.", defaultValue = "PT15S")
+  private Duration readIdle;
 
   public HostAndPort target() {
 
@@ -184,97 +192,139 @@ public class Main implements Callable<Integer> {
       // includes negotiation
       Channel ch = connector.get(10, TimeUnit.SECONDS);
 
-      System.err.println("connected");
+      log.info("connected");
 
       ImmutableAmiCredentials credentials = this.credentials();
 
+      AtomicLong nextActionId = new AtomicLong();
+
       DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
       loginFrame.add("Action", "Login");
-      loginFrame.add("ActionID", Long.toHexString(1));
+      loginFrame.add("ActionID", Long.toHexString(nextActionId.incrementAndGet()));
       loginFrame.add("Username", credentials.username());
       loginFrame.add("Secret", credentials.secret());
       ch.writeAndFlush(loginFrame);
 
       AtomicLong seqno = new AtomicLong();
 
-      ch.pipeline().addLast(new SimpleChannelInboundHandler<Object>(true) {
+      if ((this.pingInterval != null) || (this.readIdle != null)) {
+        ch.pipeline().addLast(new IdleStateHandler(this.readIdle.toMillis(), 0, this.pingInterval.toMillis(), TimeUnit.MILLISECONDS));
+      }
 
-        boolean closed = false;
+      ch.pipeline()
+        .addLast(new SimpleChannelInboundHandler<Object>(true) {
 
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+          boolean closed = false;
 
-          try {
+          @Override
+          public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof IdleStateEvent) {
+              IdleStateEvent e = (IdleStateEvent) evt;
+              log.info("idle event {}", e);
+              if (e.state() == IdleState.READER_IDLE) {
+                log.info("reader was idle for too long, closing connection");
+                this.closed = true;
+                ctx.close();
+              }
+              else if (e.state() == IdleState.ALL_IDLE) {
+                // no read or writes for the interval, so send ping.
 
-            if (msg instanceof AmiFrame) {
+                sendPing(ctx);
+              }
+            }
+          }
 
-              AmiFrame frame = (AmiFrame) msg;
+          private void sendPing(ChannelHandlerContext ctx) {
+            log.debug("sending ping");
+            DefaultAmiFrame pingFrame = DefaultAmiFrame.newFrame();
+            pingFrame.add("Action", "Ping");
+            pingFrame.add("ActionID", Long.toHexString(nextActionId.incrementAndGet()));
+            ch.writeAndFlush(pingFrame);
+          }
 
-              CharSequence res = frame.get("Response");
+          @Override
+          protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
 
-              if (res != null) {
+            try {
 
-                if (res.equals("Error")) {
-                  ctx.channel().close();
-                  closed = true;
-                  return;
+              if (msg instanceof AmiFrame) {
+
+                AmiFrame frame = (AmiFrame) msg;
+
+                CharSequence res = frame.get("Response");
+
+                if (res != null) {
+
+                  if (res.equals("Error")) {
+                    log.error("got aim frame error: {}", frame);
+                    ctx.channel().close();
+                    closed = true;
+                    return;
+                  }
+
+                  // note: we include the Ping response in the stream. this is useful for keepalive
+                  // purposes.
+
                 }
+
+                ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+                String output = mapper.writeValueAsString(e) + "\n";
+                String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
+                kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
 
               }
 
-              ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
-              String output = mapper.writeValueAsString(e) + "\n";
-              String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
-              kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
+            }
+            catch (Exception e) {
+
+              log.error("got error processing channel: {}", e.getMessage(), e);
+
+              // close, so we can restart with clean state.
+              closed = true;
+              ctx.channel().close();
+
+            }
+            finally {
+
+              if (!closed) {
+                // always read more, as long as we are not closed.
+                ctx.read();
+              }
 
             }
 
           }
-          catch (Exception e) {
 
-            // close, so we can restart with clean state.
-            closed = true;
-            ctx.channel().close();
-
-          }
-          finally {
-
-            if (!closed) {
-              // always read more, as long as we are not closed.
-              ctx.read();
+          @Override
+          public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            log.error("channel received exception: {}", cause.getMessage(), cause);
+            if (ctx.channel().isOpen() && !closed) {
+              log.info("closing channel");
+              closed = true;
+              ctx.channel().close();
             }
-
           }
 
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-          System.err.println(cause);
-          cause.printStackTrace();
-          if (ctx.channel().isOpen() && !closed) {
-            closed = true;
-            ctx.channel().close();
-          }
-        }
-
-      });
+        });
 
       // fire off an initial read.
       ch.read();
 
       ch.closeFuture().awaitUninterruptibly();
 
-      System.err.println("closed");
+      log.info("channel closed");
 
     }
     finally {
-      kinesis.flushSync();
-      kinesis.close();
+      log.info("shutting down event loop");
       eventLoop.shutdownGracefully();
+      log.info("flushing kinesis");
+      kinesis.flushSync();
+      log.info("shutting down kinesis");
+      kinesis.close();
     }
 
-    System.err.println("done");
+    log.info("exiting");
 
     return 0;
 
