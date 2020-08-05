@@ -52,7 +52,7 @@ public class Main implements Callable<Integer> {
   private String username = "asterisk";
 
   @Option(names = { "-p" }, description = "AMI password")
-  private String password = "asterisk";
+  private String password;
 
   @Option(names = { "-f" }, description = "path to asterisk manager.conf to read credentails from")
   private Path configPath;
@@ -214,13 +214,18 @@ public class Main implements Callable<Integer> {
   }
 
   private ImmutableAmiCredentials credentials() {
+
     if ((configPath == null) || (this.password != null)) {
       return AmiCredentials.of(this.username, this.password);
     }
+
     try {
       Ini ini = new Ini();
       ini.load(new FileReader(configPath.toFile()));
       Ini.Section section = ini.get(username);
+      if (section == null) {
+        throw new IllegalArgumentException(String.format("config file [%s] does not contain user '%s'", configPath, this.username));
+      }
       return AmiCredentials.of(section.getName(), section.get("secret"));
     }
     catch (Exception ex) {
