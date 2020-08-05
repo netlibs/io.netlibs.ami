@@ -1,5 +1,7 @@
 ## build first.
 FROM gradle:6.5.1-jdk14 AS build
+RUN apt-get update && apt-get -y install binutils
+
 ARG GITHUB_ACTOR
 ARG GITHUB_TOKEN
 COPY --chown=gradle:gradle . /home/gradle/src
