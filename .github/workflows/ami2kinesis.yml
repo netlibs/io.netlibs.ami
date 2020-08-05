@@ -30,7 +30,7 @@ jobs:
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
       - name: Push image
         run: |
-          IMAGE_ID=netlibs/${{ github.repository }}/$IMAGE_NAME
+          IMAGE_ID=netlibs/$IMAGE_NAME
           # Change all uppercase to lowercase
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           # Strip git ref prefix from version
