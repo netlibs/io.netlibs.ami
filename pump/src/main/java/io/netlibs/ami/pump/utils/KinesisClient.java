@@ -89,11 +89,14 @@ public class KinesisClient {
     config.setRateLimit(settings.rateLimit().orElse(150));
     config.setMaxConnections(settings.maxConnections().orElse(24));
 
-    // config.setRecordTtl(settings.recordTtl().orElse(Duration.ofSeconds(30)).toMillis());
+    // how long a record can be bufferd without submitting before we give up.
+    // note that when we give up we need to resynchronize! but also don't want
+    // stale data around forever.
+    config.setRecordTtl(settings.recordTtl().orElse(Duration.ofSeconds(30)).toMillis());
 
     config.setThreadPoolSize(settings.threadPoolSize().orElse(0));
     config.setThreadingModel(KinesisProducerConfiguration.ThreadingModel.POOLED);
-    config.setRecordMaxBufferedTime(settings.recordMaxBufferedTime().orElse(Duration.ofMillis(10)).toMillis());
+    config.setRecordMaxBufferedTime(settings.recordMaxBufferedTime().orElse(Duration.ofMillis(100)).toMillis());
     config.setRequestTimeout(settings.requestTimeout().orElse(Duration.ofSeconds(6)).toMillis());
 
     // region based on the stream ARN.
