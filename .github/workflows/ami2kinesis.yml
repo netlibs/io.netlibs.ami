@@ -43,3 +43,5 @@ jobs:
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
+          docker tag $IMAGE_NAME docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME:$VERSION
+          docker push docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME:$VERSION
