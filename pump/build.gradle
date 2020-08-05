@@ -47,7 +47,7 @@ dependencies {
   implementation 'com.google.guava:guava:29.0-jre'  
   implementation 'com.datadoghq:java-dogstatsd-client:2.10.1'  
   implementation 'javax.xml.bind:jaxb-api:2.3.1'
-  implementation 'io.micrometer:micrometer-registry-datadog:latest.release'
+  implementation 'io.micrometer:micrometer-registry-datadog:1.5.3'
   implementation 'io.reactivex.rxjava3:rxjava:3.0.4'
   runtime 'ch.qos.logback:logback-classic:1.2.3'
   
