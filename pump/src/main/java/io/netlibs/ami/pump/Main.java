@@ -20,6 +20,7 @@ import org.ini4j.Ini;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,6 +47,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -141,12 +143,21 @@ public class Main implements Callable<Integer> {
 
       @Override
       public void refresh() {
+        // background handled in aws-sdk 2.0.
       }
 
       @Override
       public AWSCredentials getCredentials() {
-        AwsSessionCredentials creds = (AwsSessionCredentials) credentialsProvider.resolveCredentials();
-        return new BasicSessionCredentials(creds.accessKeyId(), creds.secretAccessKey(), creds.sessionToken());
+
+        AwsCredentials creds = credentialsProvider.resolveCredentials();
+
+        if (creds instanceof AwsSessionCredentials) {
+          AwsSessionCredentials sessionCreds = (AwsSessionCredentials) creds;
+          return new BasicSessionCredentials(sessionCreds.accessKeyId(), sessionCreds.secretAccessKey(), sessionCreds.sessionToken());
+        }
+
+        return new BasicAWSCredentials(creds.accessKeyId(), creds.secretAccessKey());
+
       }
 
     }, new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion().id(), streamName);
