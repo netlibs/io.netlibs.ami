@@ -239,51 +239,30 @@ public class Main implements Callable<Integer> {
           @Override
           protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
 
-            try {
+            if (msg instanceof AmiFrame) {
 
-              if (msg instanceof AmiFrame) {
+              AmiFrame frame = (AmiFrame) msg;
 
-                AmiFrame frame = (AmiFrame) msg;
+              CharSequence res = frame.get("Response");
 
-                CharSequence res = frame.get("Response");
+              if (res != null) {
 
-                if (res != null) {
-
-                  if (res.equals("Error")) {
-                    log.error("got aim frame error: {}", frame);
-                    ctx.channel().close();
-                    closed = true;
-                    return;
-                  }
-
-                  // note: we include the Ping response in the stream. this is useful for keepalive
-                  // purposes.
-
+                if (res.equals("Error")) {
+                  log.error("got aim frame error: {}", frame);
+                  ctx.channel().close();
+                  closed = true;
+                  return;
                 }
 
-                ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
-                String output = mapper.writeValueAsString(e) + "\n";
-                String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
-                kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
+                // note: we include the Ping response in the stream. this is useful for keepalive
+                // purposes.
 
               }
 
-            }
-            catch (Exception e) {
-
-              log.error("got error processing channel: {}", e.getMessage(), e);
-
-              // close, so we can restart with clean state.
-              closed = true;
-              ctx.channel().close();
-
-            }
-            finally {
-
-              if (!closed) {
-                // always read more, as long as we are not closed.
-                ctx.read();
-              }
+              ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+              String output = mapper.writeValueAsString(e) + "\n";
+              String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
+              kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
 
             }
 
@@ -296,6 +275,14 @@ public class Main implements Callable<Integer> {
               log.info("closing channel");
               closed = true;
               ctx.channel().close();
+            }
+          }
+
+          @Override
+          public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+            if (!closed && ctx.channel().isActive()) {
+              // always read more, as long as we are not closed.
+              ctx.read();
             }
           }
 
