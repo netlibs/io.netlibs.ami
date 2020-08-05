@@ -1,6 +1,7 @@
 package io.netlibs.ami.netty;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
@@ -47,6 +48,12 @@ public class AmiFrameDecoder extends SimpleChannelInboundHandler<ByteBuf> {
         String value = line.substring(idx + 1).trim();
 
         if (frame.contains(name)) {
+          List<CharSequence> existing = frame.getAll(name);
+          if (existing.contains(value)) {
+            log.debug("duplicate value for header '{}': '{}'", name, value);
+            // just duplicate wiht same value, ignore.
+            return;
+          }
           log.warn("duplicate key '{}', values: {}, adding '{}'", name, frame.getAll(name), value);
         }
 
