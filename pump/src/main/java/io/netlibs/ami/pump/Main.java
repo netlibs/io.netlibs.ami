@@ -70,9 +70,12 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "-f" }, description = "path to asterisk manager.conf to read credentails from")
   private Path configPath;
-
+  
   @Option(names = { "-t" }, description = "target to connect to", defaultValue = "localhost")
   private String targetHost;
+
+  @Option(names = { "-i" }, description = "instance identifier")
+  private String instanceId;
 
   @Option(names = { "-s" }, description = "AWS Kinesis stream name to write to", defaultValue = "ami-events")
   private String streamName;
@@ -322,7 +325,10 @@ public class Main implements Callable<Integer> {
     return vals;
   }
 
-  private static String getStableInstanceID() {
+  private String getStableInstanceID() {
+    if (this.instanceId != null && !this.instanceId.isEmpty()) {
+      return this.instanceId;
+    }
     try {
       InetAddress inetaddress = InetAddress.getLocalHost();
       return inetaddress.getHostAddress();
