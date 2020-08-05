@@ -400,17 +400,28 @@ public class Main implements Callable<Integer> {
         .messageAttributes(ImmutableMap
           .of(
             "FS.PUMP.EVENT",
-            MessageAttributeValue.builder().stringValue("INIT").build(),
+            MessageAttributeValue.builder()
+              .dataType("String")
+              .stringValue("INIT")
+              .build(),
             "FS.PUMP.ID",
-            MessageAttributeValue.builder().stringValue(pumpId.id()).build(),
+            MessageAttributeValue.builder()
+              .dataType("String")
+              .stringValue(pumpId.id())
+              .build(),
             "FS.PUMP.EPOCH",
-            MessageAttributeValue.builder().stringValue(Long.toString(pumpId.epoch())).build(),
+            MessageAttributeValue.builder()
+              .dataType("Number")
+              .stringValue(Long.toString(pumpId.epoch()))
+              .build(),
             "FS.PUMP.SHARD",
             MessageAttributeValue.builder()
+              .dataType("String")
               .stringValue(res.getShardId())
               .build(),
             "FS.PUMP.SEQ",
             MessageAttributeValue.builder()
+              .dataType("Number")
               .stringValue(res.getSequenceNumber())
               .build()
           //
