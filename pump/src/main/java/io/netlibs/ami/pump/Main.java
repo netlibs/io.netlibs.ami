@@ -9,12 +9,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLContext;
 
 import org.ini4j.Ini;
 
@@ -54,6 +58,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sns.SnsAsyncClient;
 import software.amazon.awssdk.services.sns.model.MessageAttributeValue;
@@ -184,6 +189,9 @@ public class Main implements Callable<Integer> {
 
     KinesisClient kinesis = new KinesisClient(kinesisConfig, new CredentialsProviderSupplier(credentialsProvider));
 
+    log.info("supported SSL protocols: {}", Arrays.toString(SSLContext.getDefault().getSupportedSSLParameters().getProtocols()));
+    log.info("supported SSL ciphers: {}", Arrays.toString(SSLContext.getDefault().getSupportedSSLParameters().getCipherSuites()));
+
     //
 
     if (!Strings.isNullOrEmpty(this.snsControlEvents)) {
@@ -191,6 +199,7 @@ public class Main implements Callable<Integer> {
         SnsAsyncClient.builder()
           .credentialsProvider(credentialsProvider)
           .region(region)
+          .asyncConfiguration(b -> b.advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR, Executors.newFixedThreadPool(2)))
           .build();
     }
 
@@ -397,9 +406,13 @@ public class Main implements Callable<Integer> {
             "FS.PUMP.EPOCH",
             MessageAttributeValue.builder().stringValue(Long.toString(pumpId.epoch())).build(),
             "FS.PUMP.SHARD",
-            MessageAttributeValue.builder().stringValue(res.getShardId()).build(),
+            MessageAttributeValue.builder()
+              .stringValue(res.getShardId())
+              .build(),
             "FS.PUMP.SEQ",
-            MessageAttributeValue.builder().stringValue(res.getSequenceNumber()).build()
+            MessageAttributeValue.builder()
+              .stringValue(res.getSequenceNumber())
+              .build()
           //
           ))
         .message(metadata.toString()))

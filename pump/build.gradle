@@ -15,8 +15,8 @@ repositories {
 }
 
 runtime {
-    options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
-    modules = [ ]
+    options = [ '--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages' ]
+    modules = [ 'jdk.crypto.ec','java.desktop', 'java.prefs', 'java.logging', 'jdk.unsupported', 'java.xml', 'java.sql', 'java.naming', 'java.management' ]
     //targetPlatform('linux-x64', '/Volumes/THEO/jvms/jdk-14.0.1_linux-x64')
     //targetPlatform('darwin-x64', '/Library/Java/JavaVirtualMachines/jdk-14.0.1.jdk/Contents/Home')    
 }
@@ -25,10 +25,12 @@ dependencies {
   annotationProcessor 'org.immutables:value:2.8.8'
   compileOnly 'org.immutables:value-annotations:2.8.8'
   implementation 'org.slf4j:slf4j-api:1.7.30'
+  implementation platform('io.netty:netty-bom:4.1.51.Final')
   implementation platform('software.amazon.awssdk:bom:2.13.68')
   implementation 'software.amazon.awssdk:auth'
   implementation 'software.amazon.awssdk:sts'
   implementation 'software.amazon.awssdk:sns'
+  implementation 'software.amazon.awssdk:netty-nio-client'
   implementation 'info.picocli:picocli:4.5.0'  
 }
 

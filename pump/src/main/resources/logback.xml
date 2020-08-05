@@ -14,9 +14,11 @@
 		</encoder>
 	</appender>
 
-	<logger name="software.amazon.awssdk" level="INFO" />
 	<logger name="com.amazonaws" level="INFO" />
+
+	<logger name="software.amazon.awssdk" level="INFO" />
 	<logger name="io.netty" level="INFO" />
+	
 	<logger name="com.google.inject" level="INFO" />
 	<logger name="io.netlibs.ami" level="INFO" />
 	
