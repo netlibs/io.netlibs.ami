@@ -421,7 +421,7 @@ public class Main implements Callable<Integer> {
               .build(),
             "FS.PUMP.SEQ",
             MessageAttributeValue.builder()
-              .dataType("Number")
+              .dataType("String")
               .stringValue(res.getSequenceNumber())
               .build()
           //
