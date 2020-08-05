@@ -123,78 +123,79 @@ public class Main implements Callable<Integer> {
 
     NioEventLoopGroup eventLoop = new NioEventLoopGroup(1);
 
-    CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, target(), Duration.ofSeconds(5));
+    try {
 
-    ObjectMapper mapper = ObjectMapperFactory.objectMapper();
+      CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, target(), Duration.ofSeconds(5));
 
-    // includes negotiation
-    Channel ch = connector.get(10, TimeUnit.SECONDS);
+      ObjectMapper mapper = ObjectMapperFactory.objectMapper();
 
-    System.err.println("connected");
+      // includes negotiation
+      Channel ch = connector.get(10, TimeUnit.SECONDS);
 
-    ImmutableAmiCredentials credentials = this.credentials();
+      System.err.println("connected");
 
-    DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
-    loginFrame.add("Action", "Login");
-    loginFrame.add("ActionID", Long.toHexString(1));
-    loginFrame.add("Username", credentials.username());
-    loginFrame.add("Secret", credentials.secret());
-    ch.writeAndFlush(loginFrame);
+      ImmutableAmiCredentials credentials = this.credentials();
 
-    AtomicLong seqno = new AtomicLong();
+      DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
+      loginFrame.add("Action", "Login");
+      loginFrame.add("ActionID", Long.toHexString(1));
+      loginFrame.add("Username", credentials.username());
+      loginFrame.add("Secret", credentials.secret());
+      ch.writeAndFlush(loginFrame);
 
-    ch.pipeline().addLast(new SimpleChannelInboundHandler<Object>(true) {
+      AtomicLong seqno = new AtomicLong();
 
-      boolean closed = false;
+      ch.pipeline().addLast(new SimpleChannelInboundHandler<Object>(true) {
 
-      @Override
-      protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+        boolean closed = false;
 
-        try {
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
 
-          if (msg instanceof AmiFrame) {
+          try {
 
-            AmiFrame frame = (AmiFrame) msg;
-            System.err.println(msg);
+            if (msg instanceof AmiFrame) {
 
-            CharSequence res = frame.get("Response");
+              AmiFrame frame = (AmiFrame) msg;
+              System.err.println(msg);
 
-            if (res != null) {
+              CharSequence res = frame.get("Response");
 
-              if (res.equals("Error")) {
-                ctx.channel().close();
-                closed = true;
-                return;
+              if (res != null) {
+
+                if (res.equals("Error")) {
+                  ctx.channel().close();
+                  closed = true;
+                  return;
+                }
+
+              }
+
+              try {
+                ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+                String output = mapper.writeValueAsString(e) + "\n";
+                String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
+                kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
+              }
+              catch (JsonProcessingException e) {
+                e.printStackTrace();
               }
 
             }
 
-            try {
-              ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
-              String output = mapper.writeValueAsString(e) + "\n";
-              String partitionName = frame.getOrDefault("SystemName", "unknown").toString();
-              kinesis.add(partitionName, ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
-            }
-            catch (JsonProcessingException e) {
-              e.printStackTrace();
-            }
+          }
 
+          finally {
+
+            // always read more.
+            if (!closed)
+              ctx.read();
           }
 
         }
 
-        finally {
+      });
 
-          // always read more.
-          if (!closed)
-            ctx.read();
-        }
-
-      }
-
-    });
-
-    try {
       while (ch.isOpen()) {
         ch.read();
       }
