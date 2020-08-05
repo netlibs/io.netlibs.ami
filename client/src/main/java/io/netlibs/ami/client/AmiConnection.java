@@ -15,15 +15,13 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 
 public class AmiConnection {
 
-  private static final NioEventLoopGroup group = new NioEventLoopGroup(1);
-
-  public static CompletableFuture<Channel> connect(HostAndPort target, Duration timeout) {
+  public static CompletableFuture<Channel> connect(NioEventLoopGroup eventLoop, HostAndPort target, Duration timeout) {
 
     CompletableFuture<Channel> chf = new CompletableFuture<>();
 
     Bootstrap b = new Bootstrap();
 
-    b.group(group)
+    b.group(eventLoop)
       .channel(NioSocketChannel.class)
       .option(ChannelOption.AUTO_READ, false)
       .option(ChannelOption.TCP_NODELAY, true)

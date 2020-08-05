@@ -12,12 +12,9 @@ allprojects { project ->
       jcenter()
   }
 
-  project.plugins.withId('java') {
-  
-    sourceCompatibility = 9
-    targetCompatibility = 9
-  
-    
+  project.plugins.withId('java') {  
+    sourceCompatibility = 8
+    targetCompatibility = 8
   }
 
   project.apply plugin: 'eclipse'
@@ -32,7 +29,7 @@ eclipse.project.name = 'netlibs:ami'
 eclipse.synchronizationTasks configureBuildship
 
 wrapper {
-  gradleVersion = '6.2.2'
+  gradleVersion = '6.5.1'
   doLast {
     delete "${projectDir}/gradlew.bat"
   }

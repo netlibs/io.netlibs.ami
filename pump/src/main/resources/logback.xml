@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration packagingData="true">
+
+	<contextListener
+		class="ch.qos.logback.classic.jul.LevelChangePropagator">
+		<resetJUL>true</resetJUL>
+	</contextListener>
+
+	<appender name="STDOUT"
+		class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{3} - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+
+	<logger name="software.amazon.awssdk" level="INFO" />
+	<logger name="com.amazonaws" level="INFO" />
+	<logger name="io.netty" level="INFO" />
+	<logger name="com.google.inject" level="INFO" />
+	<logger name="io.netlibs.ami" level="INFO" />
+	
+	<root level="INFO">
+		<appender-ref ref="STDOUT" />
+	</root>
+
+</configuration>
