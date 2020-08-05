@@ -1,9 +1,8 @@
 package io.netlibs.ami.client;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 
-import io.netlibs.ami.api.AmiChannelStatusMessage;
-import io.netlibs.ami.api.AmiMessage;
 import io.netlibs.ami.api.AmiVersion;
 import io.netlibs.ami.netty.AmiFrameCodec;
 import io.netty.buffer.ByteBuf;
@@ -19,7 +18,6 @@ import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
-import io.reactivex.rxjava3.processors.BehaviorProcessor;
 
 public class AmiClientHandler extends ChannelInitializer<Channel> {
 
@@ -29,13 +27,17 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
 
   private static final ByteBuf FRAME_SEP = Unpooled.wrappedBuffer("\r\n\r\n".getBytes()).asReadOnly();
 
-  private final BehaviorProcessor<AmiMessage> incoming;
-
   private SslContext sslctx;
 
-  public AmiClientHandler(BehaviorProcessor<AmiMessage> incoming, SslContext sslctx) {
-    this.incoming = incoming;
+  private CompletableFuture<Channel> handler;
+
+  public AmiClientHandler(CompletableFuture<Channel> chf, SslContext sslctx) {
+    this.handler = chf;
     this.sslctx = sslctx;
+  }
+
+  public AmiClientHandler(CompletableFuture<Channel> chf) {
+    this(chf, null);
   }
 
   @Override
@@ -43,7 +45,9 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
 
     ChannelPipeline p = ch.pipeline();
 
-    p.addLast("ssl", sslctx.newHandler(ch.alloc()));
+    if (sslctx != null) {
+      p.addLast("ssl", sslctx.newHandler(ch.alloc()));
+    }
 
     // decode based on line initially, as we want to read the first one to adapt to the correct
     // protocol before sending a login frame.
@@ -55,9 +59,6 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
     // protocol selector.
     p.addLast(new AmiProtocolSelector());
 
-    // protocol selector.
-    p.addLast(new LoggingHandler(getClass(), LogLevel.DEBUG));
-
   }
 
   /**
@@ -66,6 +67,22 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
    */
 
   private class AmiProtocolSelector extends SimpleChannelInboundHandler<ByteBuf> {
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+      if (ctx.channel().isActive() && !ctx.channel().config().isAutoRead()) {
+        ctx.read();
+      }
+      super.channelRegistered(ctx);
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+      if (!ctx.channel().config().isAutoRead()) {
+        ctx.read();
+      }
+      super.channelRegistered(ctx);
+    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
@@ -80,18 +97,11 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
         // add a codec handler.
         p.replace(this, "codec", new AmiFrameCodec(AmiVersion.ASTERISK_6));
 
-        // notify.
-        incoming.onNext(AmiChannelStatusMessage.connected(AmiVersion.ASTERISK_6));
-
-        p.addLast("dispatcher", new MessageDispatcher(incoming));
-
-        ctx.fireChannelRegistered();
+        handler.complete(ctx.channel());
 
       }
       else {
-
-        throw new IllegalArgumentException(String.format("unexpected protocol frame: '%s'", msg));
-
+        handler.completeExceptionally(new IllegalArgumentException(String.format("unexpected protocol frame: '%s'", msg)));
       }
 
     }
