@@ -13,5 +13,5 @@ RUN gradle runtime --no-daemon --console plain
 ## create target image.
 FROM adoptopenjdk:14.0.1_7-jre-hotspot
 RUN mkdir /app
-COPY --from=build /home/gradle/src/pump/build/jre/* /app/
+COPY --from=build /home/gradle/src/pump/build/image /app/
 ENTRYPOINT [ "/app/bin/pump" ]
