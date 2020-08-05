@@ -1,6 +1,7 @@
 package io.netlibs.ami.netty;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.base.Splitter;
@@ -30,36 +31,46 @@ public class AmiFrameDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
     DefaultAmiFrame frame = DefaultAmiFrame.newFrame();
 
-    splitter.split(msg.toString(StandardCharsets.UTF_8))
-      .forEach(line -> {
+    String body = msg.toString(StandardCharsets.UTF_8);
 
-        if (Strings.isNullOrEmpty(line)) {
+    ArrayList<String> errors = null;
+
+    for (String line : splitter.split(body)) {
+
+      if (Strings.isNullOrEmpty(line)) {
+        continue;
+      }
+
+      int idx = line.indexOf(':');
+
+      if (idx == -1) {
+        if (errors == null)
+          errors = new ArrayList<>();
+        errors.add(line);
+        continue;
+      }
+
+      String name = line.substring(idx).trim();
+      String value = line.substring(idx + 1).trim();
+
+      if (frame.contains(name)) {
+        List<CharSequence> existing = frame.getAll(name);
+        if (existing.contains(value)) {
+          log.debug("duplicate value for header '{}': '{}'", name, value);
+          // just duplicate wiht same value, ignore.
           return;
         }
+        log.warn("duplicate key '{}', values: {}, adding '{}'", name, frame.getAll(name), value);
+      }
 
-        int idx = line.indexOf(':');
+      frame.add(name, value);
 
-        if (idx == -1) {
-          log.error("frame line was invalid: [{}]", line);
-          return;
-        }
+    }
 
-        String name = line.substring(idx).trim();
-        String value = line.substring(idx + 1).trim();
-
-        if (frame.contains(name)) {
-          List<CharSequence> existing = frame.getAll(name);
-          if (existing.contains(value)) {
-            log.debug("duplicate value for header '{}': '{}'", name, value);
-            // just duplicate wiht same value, ignore.
-            return;
-          }
-          log.warn("duplicate key '{}', values: {}, adding '{}'", name, frame.getAll(name), value);
-        }
-
-        frame.add(name, value);
-
-      });
+    if (errors != null) {
+      log.warn("found {} invalid lines processing message:\n{}\n", errors.size(), body);
+      errors.forEach(line -> log.warn("offending line: [{}]", line));
+    }
 
     ctx.fireChannelRead(frame);
 
