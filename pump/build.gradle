@@ -19,10 +19,10 @@ runtime {
     modules = [ 'jdk.crypto.ec','java.desktop', 'java.prefs', 'java.logging', 'jdk.unsupported', 'java.xml', 'java.sql', 'java.naming', 'java.management' ]
     
     
-    // https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jre_arm_linux_hotspot_14.0.2_12.tar.gz
+    // https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jdk_arm_linux_hotspot_14.0.2_12.tar.gz
     
   targetPlatform("linux-x64") {
-    jdkHome = jdkDownload('https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jre_x64_linux_hotspot_14.0.2_12.tar.gz') {
+    jdkHome = jdkDownload('https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jdk_x64_linux_hotspot_14.0.2_12.tar.gz') {
       archiveExtension = "tar.gz"
     }
   }
