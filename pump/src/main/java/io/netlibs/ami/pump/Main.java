@@ -411,7 +411,8 @@ public class Main implements Callable<Integer> {
             log.info("published to SNS, messageId {}", snsres.messageId());
           }
           return null;
-        });
+        })
+        .get(5, TimeUnit.SECONDS);
     }
     catch (Exception ex) {
       log.warn("failed to notify SNS: {}", ex.getMessage(), ex);
