@@ -4,9 +4,12 @@ import java.io.FileReader;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -22,6 +25,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.ImmutableList;
 import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 
@@ -47,6 +51,14 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public class Main implements Callable<Integer> {
+
+  // if not specified, where to search.
+  private static final ImmutableList<String> managerSerchPaths =
+    ImmutableList.of(
+      "manager.conf",
+      "/etc/asterisk/manager.conf",
+      "/usr/local/etc/asterisk/manager.conf",
+      "/usr/local/asterisk/conf/manager.conf");
 
   @Option(names = { "-u" }, description = "AMI username")
   private String username = "asterisk";
@@ -94,7 +106,32 @@ public class Main implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
 
-    //
+    if (this.configPath != null) {
+      if (!Files.exists(this.configPath)) {
+        throw new IllegalArgumentException(String.format("specified config file %s does not exist", this.configPath));
+      }
+    }
+
+    // try to find automatically.
+    if (this.password == null) {
+
+      if (this.configPath == null) {
+
+        for (String s : managerSerchPaths) {
+          this.configPath = Paths.get(s);
+          if (Files.exists(this.configPath)) {
+            break;
+          }
+
+        }
+
+        if (!Files.exists(this.configPath)) {
+          throw new IllegalArgumentException(String.format("no password specified, but can't find asterisk manager config file."));
+        }
+
+      }
+
+    }
 
     //
 
