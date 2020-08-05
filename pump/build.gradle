@@ -23,10 +23,11 @@ runtime {
 
 dependencies { 
   annotationProcessor 'org.immutables:value:2.8.8'
-  compileOnly 'org.immutables:value-annotations:2.8.3'
+  compileOnly 'org.immutables:value-annotations:2.8.8'
   implementation 'org.slf4j:slf4j-api:1.7.30'
-  implementation 'software.amazon.awssdk:auth:2.13.46'
-  implementation 'software.amazon.awssdk:sts:2.10.86'    
+  implementation platform('software.amazon.awssdk:bom:2.13.68')
+  implementation 'software.amazon.awssdk:auth'
+  implementation 'software.amazon.awssdk:sts'    
   implementation 'info.picocli:picocli:4.5.0'  
 }
 
@@ -34,12 +35,13 @@ dependencies {
 dependencies {
   implementation 'org.ini4j:ini4j:0.5.4'
   implementation 'com.amazonaws:amazon-kinesis-producer:0.14.0'
-  implementation 'com.fasterxml.jackson.core:jackson-annotations:2.11.1'
-  implementation 'com.fasterxml.jackson.core:jackson-databind:2.11.1'
-  implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names:2.11.1'
-  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.11.1'
-  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.11.1'
-  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-guava:2.11.1'
+  implementation platform('com.fasterxml.jackson:jackson-bom:2.11.2')
+  implementation 'com.fasterxml.jackson.core:jackson-annotations'
+  implementation 'com.fasterxml.jackson.core:jackson-databind'
+  implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names'
+  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8'
+  implementation 'com.fasterxml.jackson.datatype:jackson-datatype-guava'
 }
 
 dependencies {
