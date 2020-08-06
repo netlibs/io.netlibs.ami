@@ -396,24 +396,24 @@ public class Main implements Callable<Integer> {
     if (this.sns == null) {
       return;
     }
-    String prefix = this.messageAttrPrefix.map(val -> Strings.nullToEmpty(val)).orElse("");
     try {
+      String prefix = this.messageAttrPrefix.map(val -> Strings.nullToEmpty(val)).orElse("");
       ObjectNode metadata = JsonNodeFactory.instance.objectNode();
       this.sns.publish(req -> req
         .topicArn(this.snsControlEvents)
         .messageAttributes(ImmutableMap
           .of(
-            String.format("%sEvent", prefix),
+            String.format("%sPumpEvent", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue("INIT")
               .build(),
-            String.format("%sId", prefix),
+            String.format("%sPumpId", prefix),
             MessageAttributeValue.builder()
               .dataType("String")
               .stringValue(pumpId.id())
               .build(),
-            String.format("%sEpoch", prefix),
+            String.format("%sPumpEpoch", prefix),
             MessageAttributeValue.builder()
               .dataType("Number")
               .stringValue(Long.toString(pumpId.epoch()))
