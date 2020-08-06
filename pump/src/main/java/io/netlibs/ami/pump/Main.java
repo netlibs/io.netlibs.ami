@@ -115,7 +115,7 @@ public class Main implements Callable<Integer> {
   private String snsControlEvents;
 
   @Option(names = { "--sns-attr-prefix" }, description = "message attribute prefix")
-  private Optional<String> messageAttrPrefix;
+  private Optional<String> messageAttrPrefix = Optional.empty();
 
   private SnsAsyncClient sns;
 
