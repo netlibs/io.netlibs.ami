@@ -21,7 +21,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 public class AmiFrameDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
   private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AmiFrameDecoder.class);
-  private static final int HNAME_MAX_LEN = 32;
+  private static final int HNAME_MAX_LEN = 64;
   private Splitter splitter = Splitter.on("\r\n");
   private CharMatcher validHeaderName = CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('0', '9')).or(CharMatcher.anyOf("-_."));
 
