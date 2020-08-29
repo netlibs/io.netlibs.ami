@@ -52,7 +52,7 @@ dependencies {
   implementation 'software.amazon.awssdk:sts'
   implementation 'software.amazon.awssdk:sns'
   implementation 'software.amazon.awssdk:netty-nio-client'
-  implementation 'info.picocli:picocli:4.5.0'  
+  implementation 'info.picocli:picocli:4.5.1'  
 }
 
 
