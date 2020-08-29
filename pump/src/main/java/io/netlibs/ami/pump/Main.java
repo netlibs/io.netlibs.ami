@@ -388,6 +388,8 @@ public class Main implements Callable<Integer> {
 
     log.info("exiting");
 
+    // hard exit, avoid background threads blocking us
+    System.exit(0);
     return 0;
 
   }
