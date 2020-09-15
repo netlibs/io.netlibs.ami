@@ -108,6 +108,9 @@ public class Main implements Callable<Integer> {
   @Option(names = { "--kinesis-buffer-time" }, description = "target min local buffer time before submitting batch.", defaultValue = "PT0.1S")
   private Duration kinesisMaxBufferTime;
 
+  @Option(names = { "--kinesis-rate-limit" }, description = "rate lomiting for a shard. 150 means 150%, default is agressive.", defaultValue = "150")
+  private Integer kinesisRateLimit;
+
   @Option(names = { "--kinesis-record-ttl" }, description = "max time a record is valid before dropping (and thus restarting).", defaultValue = "PT30S")
   private Duration kinesisRecordTimeToLive;
 
@@ -184,6 +187,8 @@ public class Main implements Callable<Integer> {
     kcb.threadPoolSize(this.kinesisThreads);
     kcb.recordMaxBufferedTime(this.kinesisMaxBufferTime);
     kcb.recordTtl(this.kinesisRecordTimeToLive);
+    kcb.rateLimit(this.kinesisRateLimit);
+    
 
     //
     ImmutableKinesisConfig kinesisConfig = kcb.build();

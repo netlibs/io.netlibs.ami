@@ -57,6 +57,7 @@ public class KinesisClient {
     Optional<Duration> recordTtl();
 
     OptionalInt threadPoolSize();
+    
 
     Optional<Duration> recordMaxBufferedTime();
 
