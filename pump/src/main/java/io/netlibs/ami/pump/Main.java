@@ -9,10 +9,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -46,9 +46,7 @@ import io.netlibs.ami.pump.model.ImmutablePumpId;
 import io.netlibs.ami.pump.model.ImmutableSourceInfo;
 import io.netlibs.ami.pump.utils.CredentialsProviderSupplier;
 import io.netlibs.ami.pump.utils.ImmutableKinesisAggregationConfig;
-import io.netlibs.ami.pump.utils.ImmutableKinesisAggregationConfig.Builder;
 import io.netlibs.ami.pump.utils.ImmutableKinesisConfig;
-import io.netlibs.ami.pump.utils.KinesisAggregationConfig;
 import io.netlibs.ami.pump.utils.KinesisClient;
 import io.netlibs.ami.pump.utils.ObjectMapperFactory;
 import io.netty.channel.Channel;
@@ -127,7 +125,7 @@ public class Main implements Callable<Integer> {
   private Duration kinesisRecordTimeToLive;
 
   @Option(names = { "--ignore-events" }, description = "events to ignore (comma seperated).")
-  private Set<String> ignoreEvents = new HashSet<>();
+  private List<String> ignoreEventsInput = new ArrayList<>();
 
   @Option(names = { "--sns-control" }, description = "post control events to this sns topic arn.")
   private String snsControlEvents;
@@ -136,6 +134,8 @@ public class Main implements Callable<Integer> {
   private Optional<String> messageAttrPrefix = Optional.empty();
 
   private SnsAsyncClient sns;
+
+  private ImmutableSet<String> ignoreEvents;
 
   public HostAndPort target() {
 
@@ -193,13 +193,13 @@ public class Main implements Callable<Integer> {
     }
 
     this.ignoreEvents =
-      this.ignoreEvents.stream()
+      this.ignoreEventsInput.stream()
         .flatMap(e -> Arrays.stream(e.split(",")))
         .map(val -> val.toLowerCase().trim())
         .filter(e -> e.length() == 0)
         .collect(ImmutableSet.toImmutableSet());
 
-    log.info("ignoring events: {}", this.ignoreEvents);
+    log.info("ignoring events: {} (from input {})", this.ignoreEvents, this.ignoreEventsInput);
 
     Region region = new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion();
 
