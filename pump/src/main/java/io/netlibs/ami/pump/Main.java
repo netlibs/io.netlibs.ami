@@ -382,17 +382,20 @@ public class Main implements Callable<Integer> {
                 // purposes.
 
               }
+              else {
+                
+                String eventType = frame.getOrDefault("Event", "").toString();
 
-              String eventType = frame.get("Event").toString();
+                if (eventType.isEmpty()) {
+                  log.error("invalid Event frame (missing Event): {}", frame);
+                  return;
+                }
 
-              if (eventType == null) {
-                log.error("invalid Event frame (missing Event): {}", frame);
-                return;
-              }
+                if (ignoreEvents.contains(eventType.toLowerCase())) {
+                  log.debug("ignoring event: {}", eventType);
+                  return;
+                }
 
-              if (ignoreEvents.contains(eventType.toLowerCase())) {
-                log.debug("ignoring event: {}", eventType);
-                return;
               }
 
               KinesisEvent evt = convert(pumpId.id(), seqno, frame);
