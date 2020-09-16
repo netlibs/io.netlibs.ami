@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 
 import org.immutables.value.Value;
@@ -34,9 +35,9 @@ public class KinesisClient {
 
     Optional<Boolean> enabled();
 
-    OptionalInt maxCount();
+    OptionalLong maxCount();
 
-    OptionalInt maxSize();
+    OptionalLong maxSize();
 
   }
 
@@ -88,8 +89,8 @@ public class KinesisClient {
 
     settings.aggregation().ifPresentOrElse(aggr -> {
       config.setAggregationEnabled(aggr.enabled().orElse(true));
-      config.setAggregationMaxCount(aggr.maxCount().orElse(1024));
-      config.setAggregationMaxSize(aggr.maxSize().orElse(1024 * 16));
+      config.setAggregationMaxCount(aggr.maxCount().orElse(4294967295L));
+      config.setAggregationMaxSize(aggr.maxSize().orElse(51200));
     }, () -> {
       config.setAggregationEnabled(true);
       // config.setAggregationMaxCount(1024);

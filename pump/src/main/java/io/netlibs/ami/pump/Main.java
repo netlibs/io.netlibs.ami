@@ -45,7 +45,10 @@ import io.netlibs.ami.pump.event.KinesisEvent;
 import io.netlibs.ami.pump.model.ImmutablePumpId;
 import io.netlibs.ami.pump.model.ImmutableSourceInfo;
 import io.netlibs.ami.pump.utils.CredentialsProviderSupplier;
+import io.netlibs.ami.pump.utils.ImmutableKinesisAggregationConfig;
+import io.netlibs.ami.pump.utils.ImmutableKinesisAggregationConfig.Builder;
 import io.netlibs.ami.pump.utils.ImmutableKinesisConfig;
+import io.netlibs.ami.pump.utils.KinesisAggregationConfig;
 import io.netlibs.ami.pump.utils.KinesisClient;
 import io.netlibs.ami.pump.utils.ObjectMapperFactory;
 import io.netty.channel.Channel;
@@ -110,6 +113,12 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "--kinesis-buffer-time" }, description = "target min local buffer time before submitting batch.", defaultValue = "PT0.1S")
   private Duration kinesisMaxBufferTime;
+
+  @Option(names = { "--kinesis-aggregate-count" }, description = "max aggregate record count.")
+  private Integer kinesisAggregateMaxCount;
+
+  @Option(names = { "--kinesis-aggregate-size" }, description = "max aggregate size.")
+  private Integer kinesisAggregateMaxSize;
 
   @Option(names = { "--kinesis-rate-limit" }, description = "rate lomiting for a shard. 150 means 150%, default is agressive.", defaultValue = "150")
   private Integer kinesisRateLimit;
@@ -203,6 +212,20 @@ public class Main implements Callable<Integer> {
     kcb.recordMaxBufferedTime(this.kinesisMaxBufferTime);
     kcb.recordTtl(this.kinesisRecordTimeToLive);
     kcb.rateLimit(this.kinesisRateLimit);
+
+    ImmutableKinesisAggregationConfig.Builder ikab =
+      ImmutableKinesisAggregationConfig.builder()
+        .enabled(true);
+
+    if (kinesisAggregateMaxCount != null) {
+      ikab.maxCount(kinesisAggregateMaxCount);
+    }
+
+    if (kinesisAggregateMaxSize != null) {
+      ikab.maxSize(kinesisAggregateMaxSize);
+    }
+
+    kcb.aggregation(ikab.build());
 
     //
     ImmutableKinesisConfig kinesisConfig = kcb.build();
