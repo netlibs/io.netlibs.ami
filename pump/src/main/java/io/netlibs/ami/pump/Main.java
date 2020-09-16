@@ -10,7 +10,9 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -29,6 +31,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 
@@ -114,6 +117,9 @@ public class Main implements Callable<Integer> {
   @Option(names = { "--kinesis-record-ttl" }, description = "max time a record is valid before dropping (and thus restarting).", defaultValue = "PT30S")
   private Duration kinesisRecordTimeToLive;
 
+  @Option(names = { "--ignore-events" }, description = "events to ignore (comma seperated).")
+  private Set<String> ignoreEvents = new HashSet<>();
+
   @Option(names = { "--sns-control" }, description = "post control events to this sns topic arn.")
   private String snsControlEvents;
 
@@ -177,6 +183,15 @@ public class Main implements Callable<Integer> {
 
     }
 
+    this.ignoreEvents =
+      this.ignoreEvents.stream()
+        .flatMap(e -> Arrays.stream(e.split(",")))
+        .map(val -> val.toLowerCase().trim())
+        .filter(e -> e.length() == 0)
+        .collect(ImmutableSet.toImmutableSet());
+
+    log.info("ignoring events: {}", this.ignoreEvents);
+
     Region region = new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion();
 
     ImmutableKinesisConfig.Builder kcb =
@@ -188,7 +203,6 @@ public class Main implements Callable<Integer> {
     kcb.recordMaxBufferedTime(this.kinesisMaxBufferTime);
     kcb.recordTtl(this.kinesisRecordTimeToLive);
     kcb.rateLimit(this.kinesisRateLimit);
-    
 
     //
     ImmutableKinesisConfig kinesisConfig = kcb.build();
@@ -346,7 +360,20 @@ public class Main implements Callable<Integer> {
 
               }
 
-              ObjectNode e = convert(convert(pumpId.id(), seqno, frame), pump);
+              String eventType = frame.get("Event").toString();
+
+              if (eventType == null) {
+                log.error("invalid Event frame (missing Event): {}", frame);
+                return;
+              }
+
+              if (ignoreEvents.contains(eventType.toLowerCase())) {
+                log.debug("ignoring event: {}", eventType);
+                return;
+              }
+
+              KinesisEvent evt = convert(pumpId.id(), seqno, frame);
+              ObjectNode e = convert(evt, pump);
               String output = mapper.writeValueAsString(e) + "\n";
               kinesis.add(pumpId.id(), ByteBuffer.wrap(output.getBytes(StandardCharsets.UTF_8)));
 
