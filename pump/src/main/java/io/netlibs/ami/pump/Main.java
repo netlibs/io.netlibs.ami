@@ -196,7 +196,7 @@ public class Main implements Callable<Integer> {
       this.ignoreEventsInput.stream()
         .flatMap(e -> Arrays.stream(e.split(",")))
         .map(val -> val.toLowerCase().trim())
-        .filter(e -> e.length() == 0)
+        .filter(e -> e.length() > 0)
         .collect(ImmutableSet.toImmutableSet());
 
     log.info("ignoring events: {} (from input {})", this.ignoreEvents, this.ignoreEventsInput);
