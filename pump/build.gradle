@@ -46,7 +46,7 @@ dependencies {
   annotationProcessor 'org.immutables:value:2.8.8'
   compileOnly 'org.immutables:value-annotations:2.8.8'
   implementation 'org.slf4j:slf4j-api:1.7.30'
-  implementation platform('io.netty:netty-bom:4.1.51.Final')
+  implementation platform('io.netty:netty-bom:4.1.53.Final')
   implementation platform('software.amazon.awssdk:bom:2.14.9')
   implementation 'software.amazon.awssdk:auth'
   implementation 'software.amazon.awssdk:sts'
