@@ -383,7 +383,7 @@ public class Main implements Callable<Integer> {
 
               }
               else {
-                
+
                 String eventType = frame.getOrDefault("Event", "").toString();
 
                 if (eventType.isEmpty()) {
@@ -435,17 +435,41 @@ public class Main implements Callable<Integer> {
       log.info("channel closed");
 
     }
+    catch (Throwable e) {
+      
+      log.error("error pumping events", e.getMessage(), e);
+      
+    }
     finally {
+
       log.info("shutting down event loop");
-      eventLoop.shutdownGracefully();
+      try {
+        eventLoop.shutdownGracefully(5, 5, TimeUnit.SECONDS).get(30, TimeUnit.SECONDS);
+      }
+      catch (Exception e) {
+        log.error("failed to gracefully shut event loop down");
+      }
+
       log.info("flushing kinesis");
-      kinesis.flushSync();
+      try {
+        kinesis.flushSync();
+      }
+      catch (Exception e) {
+        log.error("failed to gracefully flush kinesis events");
+      }
+
       log.info("shutting down kinesis");
-      kinesis.close();
+      try {
+        kinesis.close();
+      }
+      catch (Exception ex) {
+        log.error("failed to shut kinesis down");
+      }
+
+
     }
 
     log.info("exiting");
-
     // hard exit, avoid background threads blocking us
     System.exit(0);
     return 0;

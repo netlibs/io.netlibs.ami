@@ -86,7 +86,7 @@ public class KinesisClient {
     log.info("Kinesis ARN is {}", streamName);
 
     final KinesisProducerConfiguration config = new KinesisProducerConfiguration();
-
+    
     settings.aggregation().ifPresentOrElse(aggr -> {
       config.setAggregationEnabled(aggr.enabled().orElse(true));
       config.setAggregationMaxCount(aggr.maxCount().orElse(4294967295L));
