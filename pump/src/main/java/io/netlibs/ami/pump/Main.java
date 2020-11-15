@@ -495,6 +495,7 @@ public class Main implements Callable<Integer> {
       record -> flush(kinesis, record, tailer.index(), commitedIndex),
       MoreExecutors.directExecutor());
 
+
     while (active.getAsBoolean()) {
 
       String nextDoc = readDoc(tailer);
@@ -517,13 +518,13 @@ public class Main implements Callable<Integer> {
       flush(kinesis, agg.clearAndGet(), tailer.index(), commitedIndex);
     }
 
-    return true;
+    return false;
 
   }
 
   private String readDoc(ExcerptTailer tailer) {
     try (DocumentContext dc = tailer.readingDocument()) {
-      if (!dc.isNotComplete()) {
+      if (dc.isPresent() && !dc.isNotComplete()) {
         return dc.wire().read().text();
       }
     }
