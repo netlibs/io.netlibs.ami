@@ -3,6 +3,7 @@ package io.netlibs.ami.pump;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -59,12 +60,12 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.region = region;
 
     this.queue =
-      ChronicleQueue.singleBuilder(dataroot.resolve(Paths.get(config.journalPath.orElse(config.streamName))).toAbsolutePath())
+      ChronicleQueue.singleBuilder(dataroot.resolve(Paths.get(Optional.ofNullable(config.journalPath).orElse(config.streamName))).toAbsolutePath())
         .rollCycle(RollCycles.TWENTY_MINUTELY)
         .build();
 
     this.credentialsProvider =
-      config.assumeRole
+      Optional.ofNullable(config.assumeRole)
         .map(roleArn -> (AwsCredentialsProvider) StsAssumeRoleCredentialsProvider.builder()
           .refreshRequest(b -> b.roleArn(roleArn).roleSessionName("ami2kinesis"))
           .asyncCredentialUpdateEnabled(true)
@@ -74,7 +75,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
     this.compositeRegistry = registry;
     this.streamName = config.streamName;
-    this.partitionKey = config.partitionKey.orElse(this.pumpId);
+    this.partitionKey = Optional.ofNullable(config.partitionKey).orElse(this.pumpId);
     this.pauser = Pauser.balanced();
 
     this.kinesis =
