@@ -241,23 +241,7 @@ public class Main implements Callable<Integer> {
     //
     AtomicLong seqno = new AtomicLong();
 
-    try {
-
-      notifyInit("INIT", pumpId);
-
-      //
-      // DefaultAmiFrame frame = DefaultAmiFrame.newFrame();
-      // KinesisEvent evt = convert(pumpId.id(), seqno, frame);
-      // ObjectNode e = convert(evt, pump);
-      // String output = mapper.writeValueAsString(e) + "\n";
-      // appendJournal(output);
-
-    }
-    catch (Throwable t) {
-      log.error("failed to post initial event: {}", t.getMessage(), t);
-      return 99;
-    }
-    //
+    notifyInit("INIT", pumpId);
 
     NioEventLoopGroup eventLoop = new NioEventLoopGroup(1);
 
@@ -400,6 +384,7 @@ public class Main implements Callable<Integer> {
     finally {
 
       log.info("shutting down event loop");
+
       try {
         eventLoop.shutdownGracefully(5, 5, TimeUnit.SECONDS).get(30, TimeUnit.SECONDS);
       }
@@ -440,18 +425,17 @@ public class Main implements Callable<Integer> {
     log.info("commited index is {}", index);
 
     if (index > 0) {
-      boolean exists = tailer.moveToIndex(index);
-      if (!exists) {
-        log.warn("can't move to invalid index {} - tailer now {}", index, tailer.index());
-      }
+      // note that we don't need to actually have a valid index, just want to be at least at this
+      // index. a read will move us to the next one.
+      tailer.moveToIndex(index);
     }
 
     KinesisClient kinesis =
       KinesisClient.builder()
         .credentialsProvider(credentialsProvider)
         .region(this.region)
-        .overrideConfiguration(b -> b.retryPolicy(r -> r.numRetries(60))) // retry for up to a
-                                                                          // minute
+        // we continue retrying forever. monitoring will pick up overly large queues.
+        .overrideConfiguration(b -> b.retryPolicy(r -> r.numRetries(Integer.MAX_VALUE)))
         .build();
 
     while (!closed.isDone()) {
@@ -495,7 +479,6 @@ public class Main implements Callable<Integer> {
       record -> flush(kinesis, record, tailer.index(), commitedIndex),
       MoreExecutors.directExecutor());
 
-
     while (active.getAsBoolean()) {
 
       String nextDoc = readDoc(tailer);
@@ -508,7 +491,7 @@ public class Main implements Callable<Integer> {
         agg.addUserRecord(this.instanceId, nextDoc.getBytes(StandardCharsets.UTF_8));
       }
       catch (Exception e) {
-        e.printStackTrace();
+        log.error("failed to add user records, aborting process.");
         Runtime.getRuntime().halt(1);
       }
 
@@ -534,9 +517,7 @@ public class Main implements Callable<Integer> {
   private void flush(KinesisClient kinesis, AggRecord agg, long nextIndex, LongValue commitedIndex) {
 
     while (true) {
-
       try {
-
         PutRecordResponse res =
           kinesis.putRecord(
             b -> b
@@ -544,15 +525,10 @@ public class Main implements Callable<Integer> {
               .partitionKey(agg.getPartitionKey())
               .sequenceNumberForOrdering(this.sequenceNumberForOrdering)
               .data(SdkBytes.fromByteArray(agg.toRecordBytes())));
-
-        log.debug("put {} user records, seq {}", agg.getNumUserRecords(), res.sequenceNumber());
-
+        log.info("put {} user records, seq {}", agg.getNumUserRecords(), res.sequenceNumber());
         this.sequenceNumberForOrdering = res.sequenceNumber();
-
         commitedIndex.setVolatileValue(nextIndex);
-
         return;
-
       }
       catch (Exception ex) {
         log.warn("failed to call PutRecord", ex.getMessage());

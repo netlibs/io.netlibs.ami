@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'net.ltgt.apt-eclipse'
+    id 'com.diffplug.eclipse.apt'
 }
 
 dependencies {
