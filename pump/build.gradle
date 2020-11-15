@@ -13,6 +13,12 @@ jib {
     jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
     format = 'OCI'
   }
+  to {
+    auth {
+      username = System.getenv('GITHUB_ACTOR')
+      password = System.getenv('GITHUB_TOKEN')
+    }
+  }
 }
 
 

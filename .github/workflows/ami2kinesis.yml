@@ -23,6 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Build image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
         run: |
 
           IMAGE_ID=netlibs/$IMAGE_NAME
