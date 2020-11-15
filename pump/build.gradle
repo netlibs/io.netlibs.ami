@@ -11,7 +11,7 @@ mainClassName = 'io.netlibs.ami.pump.Main'
 jib {
   container {
     jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
-    format = 'OCI'
+    format = 'Docker'
   }
   to {
     auth {
