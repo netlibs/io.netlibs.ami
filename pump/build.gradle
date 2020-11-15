@@ -37,6 +37,7 @@ dependencies {
   implementation platform('io.netty:netty-bom:4.1.54.Final')
   implementation platform('software.amazon.awssdk:bom:2.15.28')
   implementation platform('com.fasterxml.jackson:jackson-bom:2.11.3')
+  implementation platform('io.micrometer:micrometer-bom:1.6.1')
 
   annotationProcessor 'org.immutables:value:2.8.8'
   compileOnly 'org.immutables:value-annotations:2.8.8'
@@ -66,6 +67,8 @@ dependencies {
   implementation project(':client')
   implementation 'com.google.guava:guava:30.0-jre'  
   implementation 'org.slf4j:slf4j-api:1.7.30'
+  implementation 'io.micrometer:micrometer-core'
+  implementation 'io.micrometer:micrometer-registry-datadog'
   runtimeOnly 'org.slf4j:slf4j-simple:1.7.30'  
 }
 

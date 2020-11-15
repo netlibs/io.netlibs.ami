@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -35,6 +36,8 @@ import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.logging.LoggingMeterRegistry;
 import io.netlibs.ami.api.AmiFrame;
 import io.netlibs.ami.client.AmiConnection;
 import io.netlibs.ami.client.AmiCredentials;
@@ -140,6 +143,8 @@ public class Main implements Callable<Integer> {
 
   private String sequenceNumberForOrdering = "0";
 
+  private MeterRegistry compositeRegistry;
+
   public HostAndPort target() {
 
     HostAndPort tt = HostAndPort.fromString(this.targetHost);
@@ -204,6 +209,8 @@ public class Main implements Callable<Integer> {
 
     journalPath = Paths.get(journalPath).toAbsolutePath().toString();
     log.info("using path: {}", journalPath);
+
+    this.compositeRegistry = new LoggingMeterRegistry();
 
     this.queue =
       ChronicleQueue.singleBuilder(journalPath)
@@ -334,6 +341,23 @@ public class Main implements Callable<Integer> {
                 if (ignoreEvents.contains(eventType.toLowerCase())) {
                   log.debug("ignoring event: {}", eventType);
                   return;
+                }
+
+                try {
+
+                  String friendlyEvent = eventType;
+
+                  if (eventType.equalsIgnoreCase("UserEvent")) {
+                    friendlyEvent = frame.getOrDefault("UserEvent", "").toString();
+                  }
+
+                  compositeRegistry
+                    .counter("ami2kinesis.events.count", "pump", instanceId, "type", friendlyEvent.toLowerCase())
+                    .increment();
+
+                }
+                catch (Exception ex) {
+                  log.warn("error recording event", ex.getMessage());
                 }
 
               }
@@ -516,8 +540,11 @@ public class Main implements Callable<Integer> {
 
   private void flush(KinesisClient kinesis, AggRecord agg, long nextIndex, LongValue commitedIndex) {
 
+    Stopwatch start = Stopwatch.createStarted();
+
     while (true) {
       try {
+
         PutRecordResponse res =
           kinesis.putRecord(
             b -> b
@@ -525,9 +552,27 @@ public class Main implements Callable<Integer> {
               .partitionKey(agg.getPartitionKey())
               .sequenceNumberForOrdering(this.sequenceNumberForOrdering)
               .data(SdkBytes.fromByteArray(agg.toRecordBytes())));
-        log.info("put {} user records, seq {}", agg.getNumUserRecords(), res.sequenceNumber());
+
+        start.stop();
+
+        log.debug("put {} user records in {}, seq {}", agg.getNumUserRecords(), start.elapsed(), res.sequenceNumber());
+
         this.sequenceNumberForOrdering = res.sequenceNumber();
+
         commitedIndex.setVolatileValue(nextIndex);
+
+        this.compositeRegistry
+          .timer("ami2kinesis.putrecord.duration", "pump", this.instanceId, "shardId", res.shardId())
+          .record(start.elapsed());
+
+        this.compositeRegistry
+          .counter("ami2kinesis.records.count", "pump", this.instanceId, "shardId", res.shardId())
+          .increment(agg.getNumUserRecords());
+
+        this.compositeRegistry
+          .counter("ami2kinesis.putrecord.count", "pump", this.instanceId, "shardId", res.shardId())
+          .increment();
+
         return;
       }
       catch (Exception ex) {
