@@ -2,13 +2,18 @@ plugins {
     id 'application'
     id 'eclipse'
     id 'com.diffplug.eclipse.apt'
-    id 'org.beryx.runtime' version '1.11.4'    
+    id 'com.google.cloud.tools.jib' version '2.6.0'
 }
 
 mainClassName = 'io.netlibs.ami.pump.Main'
 
-// 
 
+jib {
+  container {
+    jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
+    format = 'OCI'
+  }
+}
 
 
 apply from: "${rootDir}/gradle/eclipse.gradle"
@@ -20,16 +25,6 @@ repositories {
 
 application {
   applicationDefaultJvmArgs = ['--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED']
-}
-
-runtime {
-  options = [ '--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages' ]
-  modules = [ 'jdk.crypto.ec','java.desktop', 'java.prefs', 'java.logging', 'jdk.unsupported', 'java.xml', 'java.sql', 'java.naming', 'java.management' ]
-  targetPlatform("linux-x64") {
-    jdkHome = jdkDownload('https://github.com/AdoptOpenJDK/openjdk14-binaries/releases/download/jdk-14.0.2%2B12/OpenJDK14U-jdk_x64_linux_hotspot_14.0.2_12.tar.gz') {
-      archiveExtension = "tar.gz"
-    }
-  }     
 }
 
 dependencies {
@@ -70,6 +65,11 @@ dependencies {
   implementation 'io.micrometer:micrometer-core'
   implementation 'io.micrometer:micrometer-registry-datadog'
   runtimeOnly 'org.slf4j:slf4j-simple:1.7.30'  
+}
+
+dependencies {
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }
 
 

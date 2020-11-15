@@ -1,17 +1,12 @@
 ## build first.
-FROM gradle:6.5.1-jdk14 AS build
+FROM gradle:6.7-jdk14 AS build
 RUN apt-get update && apt-get -y install binutils
 
 ARG GITHUB_ACTOR
 ARG GITHUB_TOKEN
+
 COPY --chown=gradle:gradle . /home/gradle/src
+
 WORKDIR /home/gradle/src
 
-
-RUN gradle runtime --no-daemon --console plain
-
-## create target image.
-FROM debian:stable-slim
-RUN mkdir /app
-COPY --from=build /home/gradle/src/pump/build/image/pump-linux-x64 /app/
-ENTRYPOINT [ "/app/bin/pump" ]
+RUN gradle jib --no-daemon --console plain

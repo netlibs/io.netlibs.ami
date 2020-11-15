@@ -2,32 +2,25 @@ package io.netlibs.ami.pump;
 
 import java.io.FileReader;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
-
-import javax.net.ssl.SSLContext;
 
 import org.ini4j.Ini;
-import org.jetbrains.annotations.NotNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -35,53 +28,31 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ServiceManager;
 
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry;
-import io.micrometer.datadog.DatadogConfig;
 import io.micrometer.datadog.DatadogMeterRegistry;
-import io.netlibs.ami.api.AmiFrame;
 import io.netlibs.ami.client.AmiConnection;
 import io.netlibs.ami.client.AmiCredentials;
 import io.netlibs.ami.client.ImmutableAmiCredentials;
 import io.netlibs.ami.netty.DefaultAmiFrame;
-import io.netlibs.ami.pump.event.ImmutableKinesisEvent;
-import io.netlibs.ami.pump.event.KinesisEvent;
 import io.netlibs.ami.pump.model.ImmutablePumpId;
-import io.netlibs.ami.pump.model.ImmutableSourceInfo;
-import io.netlibs.ami.pump.utils.AggRecord;
 import io.netlibs.ami.pump.utils.ObjectMapperFactory;
-import io.netlibs.ami.pump.utils.RecordAggregator;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.handler.timeout.IdleState;
-import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
-import net.openhft.chronicle.core.values.LongValue;
-import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ExcerptAppender;
-import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.threads.Pauser;
-import net.openhft.chronicle.wire.DocumentContext;
 import picocli.CommandLine;
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Option;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.kinesis.KinesisClient;
-import software.amazon.awssdk.services.kinesis.model.PutRecordResponse;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.sns.SnsAsyncClient;
 import software.amazon.awssdk.services.sns.model.MessageAttributeValue;
+import software.amazon.awssdk.services.sts.StsClient;
 
 public class Main implements Callable<Integer> {
 
@@ -101,8 +72,11 @@ public class Main implements Callable<Integer> {
   @Option(names = { "-p" }, description = "AMI password")
   private String password;
 
-  @Option(names = { "-f" }, description = "path to asterisk manager.conf to read credentails from")
+  @Option(names = { "-f" }, description = "path to asterisk manager.conf to read credentials from")
   private Path configPath;
+
+  @Option(names = { "-D" }, description = "data root path")
+  private Path dataRoot = Paths.get("ami2kinesis").toAbsolutePath();
 
   @Option(names = { "-t" }, description = "target to connect to", defaultValue = "localhost")
   private String targetHost;
@@ -110,17 +84,8 @@ public class Main implements Callable<Integer> {
   @Option(names = { "-i" }, description = "instance identifier")
   private String instanceId;
 
-  @Option(names = { "-j" }, description = "journal path")
-  private String journalPath = "ami-journal";
-
-  @Option(names = { "--datadog-api-key" }, description = "optional datadog API key")
+  @Option(names = { "--datadog-apikey" }, description = "optional datadog API key")
   private String datadogApiKey;
-
-  @Option(names = { "-s" }, description = "AWS Kinesis stream name to write to", defaultValue = "ami-events")
-  private String streamName;
-
-  @Option(names = { "-k" }, description = "AWS Kinesis partition to write to (default uses SystemName in frames)")
-  private Optional<String> partitionKey = Optional.empty();
 
   @Option(names = { "--ping-interval" }, description = "keepalive interval (in seconds).", defaultValue = "PT5S")
   private Duration pingInterval;
@@ -137,19 +102,22 @@ public class Main implements Callable<Integer> {
   @Option(names = { "--sns-attr-prefix" }, description = "message attribute prefix")
   private Optional<String> messageAttrPrefix = Optional.empty();
 
+  //
+
+  //
+  @ArgGroup(exclusive = false, multiplicity = "1..*")
+  private List<UpstreamConfig> upstreams = new LinkedList<>();
+
+  //
   private SnsAsyncClient sns;
-
   private ImmutableSet<String> ignoreEvents;
-
-  private @NotNull SingleChronicleQueue queue;
-
   private Region region;
+
+  private CompositeMeterRegistry compositeRegistry;
 
   private DefaultCredentialsProvider credentialsProvider;
 
-  private String sequenceNumberForOrdering = "0";
-
-  private CompositeMeterRegistry compositeRegistry;
+  private ImmutableList<KinesisJournal> streams;
 
   public HostAndPort target() {
 
@@ -206,6 +174,7 @@ public class Main implements Callable<Integer> {
 
     }
 
+    // events to ignore completely.
     this.ignoreEvents =
       this.ignoreEventsInput.stream()
         .flatMap(e -> Arrays.stream(e.split(",")))
@@ -213,52 +182,42 @@ public class Main implements Callable<Integer> {
         .filter(e -> e.length() > 0)
         .collect(ImmutableSet.toImmutableSet());
 
-    journalPath = Paths.get(journalPath).toAbsolutePath().toString();
-    log.info("using path: {}", journalPath);
-
+    // setup logging.
     this.compositeRegistry = new CompositeMeterRegistry();
-
     this.compositeRegistry.add(new LoggingMeterRegistry());
-
     if (!Strings.isNullOrEmpty(this.datadogApiKey)) {
-
-      this.compositeRegistry.add(
-        new DatadogMeterRegistry(
-          new DatadogConfig() {
-
-            @Override
-            public String prefix() {
-              return "ami2kinesis";
-            }
-
-            @Override
-            public String get(String key) {
-              switch (key) {
-                case "apiKey":
-                  return datadogApiKey;
-              }
-              return null;
-            }
-
-          },
-          Clock.SYSTEM));
-
+      this.compositeRegistry.add(new DatadogMeterRegistry(new LocalDataDogConfig(this.datadogApiKey), Clock.SYSTEM));
     }
 
-    this.queue =
-      ChronicleQueue.singleBuilder(journalPath)
-        .rollCycle(RollCycles.HOURLY)
-        .build();
+    this.credentialsProvider = DefaultCredentialsProvider.create();
+    this.region = new DefaultAwsRegionProviderChain().getRegion();
 
     log.info("ignoring events: {} (from input {})", this.ignoreEvents, this.ignoreEventsInput);
 
-    this.region = new software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain().getRegion();
-    this.credentialsProvider = DefaultCredentialsProvider.create();
+    // generate a map of streams we will be writing to.
 
-    log.info("supported SSL protocols: {}", Arrays.toString(SSLContext.getDefault().getSupportedSSLParameters().getProtocols()));
-    log.info("supported SSL ciphers: {}", Arrays.toString(SSLContext.getDefault().getSupportedSSLParameters().getCipherSuites()));
+    StsClient stsClient =
+      StsClient.builder()
+        .region(region)
+        .build();
 
-    //
+    this.streams =
+      this.upstreams.stream()
+        .map(upstream -> new KinesisJournal(
+          dataRoot,
+          upstream,
+          this.instanceId,
+          this.credentialsProvider,
+          this.compositeRegistry,
+          this.region,
+          stsClient))
+        .collect(ImmutableList.toImmutableList());
+
+    ServiceManager serviceManager = new ServiceManager(streams);
+    serviceManager.addListener(new AmiServiceManagerListener(), MoreExecutors.directExecutor());
+    serviceManager.startAsync();
+
+    // SNS control client.
 
     if (!Strings.isNullOrEmpty(this.snsControlEvents)) {
       this.sns =
@@ -274,12 +233,6 @@ public class Main implements Callable<Integer> {
 
     //
     ImmutablePumpId pumpId = ImmutablePumpId.of(getStableInstanceID(), System.currentTimeMillis());
-    ObjectNode pump = JsonNodeFactory.instance.objectNode();
-    pump.put("id", pumpId.id());
-    pump.put("epoch", pumpId.epoch());
-
-    //
-    AtomicLong seqno = new AtomicLong();
 
     notifyInit("INIT", pumpId);
 
@@ -289,146 +242,36 @@ public class Main implements Callable<Integer> {
 
       CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, target(), Duration.ofSeconds(5));
 
-      // includes negotiation
+      // includes negotiation, should be plenty of time for a well functioning system.
       Channel ch = connector.get(10, TimeUnit.SECONDS);
 
       log.info("connected to '{}'", pumpId.id());
 
       ImmutableAmiCredentials credentials = this.credentials();
 
-      AtomicLong nextActionId = new AtomicLong();
+      AmiChannelHandler handler = new AmiChannelHandler(mapper, this.compositeRegistry, pumpId, ignoreEvents, streams);
 
       DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
       loginFrame.add("Action", "Login");
-      loginFrame.add("ActionID", Long.toHexString(nextActionId.incrementAndGet()));
+      loginFrame.add("ActionID", Long.toHexString(handler.nextActionId()));
       loginFrame.add("Username", credentials.username());
       loginFrame.add("Secret", credentials.secret());
+
       ch.writeAndFlush(loginFrame);
 
       if ((this.pingInterval != null) || (this.readIdle != null)) {
         ch.pipeline().addLast(new IdleStateHandler(this.readIdle.toMillis(), 0, this.pingInterval.toMillis(), TimeUnit.MILLISECONDS));
       }
 
-      ch.pipeline()
-        .addLast(new SimpleChannelInboundHandler<Object>(true) {
-
-          boolean closed = false;
-
-          @Override
-          public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-            if (evt instanceof IdleStateEvent) {
-              IdleStateEvent e = (IdleStateEvent) evt;
-              log.info("idle event {}", e);
-              if (e.state() == IdleState.READER_IDLE) {
-                log.info("reader was idle for too long ({}), closing connection", readIdle);
-                this.closed = true;
-                ctx.close();
-              }
-              else if (e.state() == IdleState.ALL_IDLE) {
-                // no read or writes for the interval, so send ping.
-                log.info("no read or write for {}, sending ping", pingInterval);
-                sendPing(ctx);
-              }
-            }
-          }
-
-          private void sendPing(ChannelHandlerContext ctx) {
-            log.info("sending ping");
-            DefaultAmiFrame pingFrame = DefaultAmiFrame.newFrame();
-            pingFrame.add("Action", "Ping");
-            pingFrame.add("ActionID", Long.toHexString(nextActionId.incrementAndGet()));
-            ctx.writeAndFlush(pingFrame);
-          }
-
-          @Override
-          protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-
-            if (msg instanceof AmiFrame) {
-
-              AmiFrame frame = (AmiFrame) msg;
-
-              CharSequence res = frame.get("Response");
-
-              if (res != null) {
-
-                if (res.equals("Error")) {
-                  log.error("got aim frame error: {}", frame);
-                  ctx.channel().close();
-                  closed = true;
-                  return;
-                }
-
-                // note: we include the Ping response in the stream. this is useful for keepalive
-                // purposes.
-
-              }
-              else {
-
-                String eventType = frame.getOrDefault("Event", "").toString();
-
-                if (eventType.isEmpty()) {
-                  log.error("invalid Event frame (missing Event): {}", frame);
-                  return;
-                }
-
-                if (ignoreEvents.contains(eventType.toLowerCase())) {
-                  log.debug("ignoring event: {}", eventType);
-                  return;
-                }
-
-                try {
-
-                  String friendlyEvent = eventType;
-
-                  if (eventType.equalsIgnoreCase("UserEvent")) {
-                    friendlyEvent = frame.getOrDefault("UserEvent", "").toString();
-                  }
-
-                  compositeRegistry
-                    .counter("events.count", "pump", instanceId, "type", friendlyEvent.toLowerCase())
-                    .increment();
-
-                }
-                catch (Exception ex) {
-                  log.warn("error recording event", ex.getMessage());
-                }
-
-              }
-
-              KinesisEvent evt = convert(pumpId.id(), seqno, frame);
-              ObjectNode e = convert(evt, pump);
-              String output = mapper.writeValueAsString(e) + "\n";
-
-              appendJournal(output);
-
-            }
-
-          }
-
-          @Override
-          public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            log.error("channel received exception: {}", cause.getMessage(), cause);
-            if (ctx.channel().isOpen() && !closed) {
-              log.info("closing channel");
-              closed = true;
-              ctx.channel().close();
-            }
-          }
-
-          @Override
-          public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-            if (!closed && ctx.channel().isActive()) {
-              // always read more, as long as we are not closed.
-              ctx.read();
-            }
-          }
-
-        });
+      //
+      ch.pipeline().addLast(handler);
 
       // fire off an initial read.
       ch.read();
 
-      writeToKinesis(ch, credentialsProvider, queue);
+      // this thread just waits for the channel to close. once it does, we signal to the kinesis
+      // uploaders to shutdown.
+      ch.closeFuture().awaitUninterruptibly();
 
       log.info("channel closed");
 
@@ -440,6 +283,8 @@ public class Main implements Callable<Integer> {
     }
     finally {
 
+      serviceManager.stopAsync();
+
       log.info("shutting down event loop");
 
       try {
@@ -449,172 +294,16 @@ public class Main implements Callable<Integer> {
         log.error("failed to gracefully shut event loop down");
       }
 
+      // wait max 30 seconds for the kinesis writers to shutdown and sync. it should never be
+      // anywhere near this long.
+      serviceManager.awaitStopped(30, TimeUnit.SECONDS);
+
     }
 
     log.info("exiting");
     // hard exit, avoid background threads blocking us
     System.exit(0);
     return 0;
-
-  }
-
-  private void writeToKinesis(Channel ch, AwsCredentialsProvider credentialsProvider, SingleChronicleQueue queue) {
-
-    //
-    ChannelFuture closed = ch.closeFuture();
-    ExcerptTailer tailer = queue.createTailer();
-
-    Pauser pauser = Pauser.balanced();
-
-    closed.addListener(new GenericFutureListener<Future<? super Void>>() {
-
-      @Override
-      public void operationComplete(Future<? super Void> future) throws Exception {
-        pauser.unpause();
-      }
-
-    });
-
-    LongValue commitedIndex = queue.metaStore().acquireValueFor("kinesis.position", 0);
-
-    long index = commitedIndex.getVolatileValue();
-
-    log.info("commited index is {}", index);
-
-    if (index > 0) {
-      // note that we don't need to actually have a valid index, just want to be at least at this
-      // index. a read will move us to the next one.
-      tailer.moveToIndex(index);
-    }
-
-    KinesisClient kinesis =
-      KinesisClient.builder()
-        .credentialsProvider(credentialsProvider)
-        .region(this.region)
-        // we continue retrying forever. monitoring will pick up overly large queues.
-        .overrideConfiguration(b -> b.retryPolicy(r -> r.numRetries(Integer.MAX_VALUE)))
-        .build();
-
-    while (!closed.isDone()) {
-      if (tryRead(tailer, kinesis, commitedIndex, () -> !closed.isDone())) {
-        pauser.reset();
-      }
-      else {
-        pauser.pause();
-      }
-    }
-
-  }
-
-  private void appendJournal(String json) {
-
-    if (queue == null) {
-      return;
-    }
-
-    ExcerptAppender appender = queue.acquireAppender();
-
-    try (final DocumentContext dc = appender.writingDocument()) {
-      dc.wire().write().text(json);
-    }
-
-  }
-
-  /**
-   * 
-   * @param tailer
-   * @param kinesis
-   * @param commitedIndex
-   * @return
-   */
-
-  private boolean tryRead(ExcerptTailer tailer, KinesisClient kinesis, LongValue commitedIndex, BooleanSupplier active) {
-
-    RecordAggregator agg = new RecordAggregator();
-
-    agg.onRecordComplete(
-      record -> flush(kinesis, record, tailer.index(), commitedIndex),
-      MoreExecutors.directExecutor());
-
-    while (active.getAsBoolean()) {
-
-      String nextDoc = readDoc(tailer);
-
-      if (nextDoc == null) {
-        break;
-      }
-
-      try {
-        agg.addUserRecord(this.instanceId, nextDoc.getBytes(StandardCharsets.UTF_8));
-      }
-      catch (Exception e) {
-        log.error("failed to add user records, aborting process.");
-        Runtime.getRuntime().halt(1);
-      }
-
-    }
-
-    if (agg.getNumUserRecords() > 0) {
-      flush(kinesis, agg.clearAndGet(), tailer.index(), commitedIndex);
-    }
-
-    return false;
-
-  }
-
-  private String readDoc(ExcerptTailer tailer) {
-    try (DocumentContext dc = tailer.readingDocument()) {
-      if (dc.isPresent() && !dc.isNotComplete()) {
-        return dc.wire().read().text();
-      }
-    }
-    return null;
-  }
-
-  private void flush(KinesisClient kinesis, AggRecord agg, long nextIndex, LongValue commitedIndex) {
-
-    Stopwatch start = Stopwatch.createStarted();
-
-    while (true) {
-      try {
-
-        PutRecordResponse res =
-          kinesis.putRecord(
-            b -> b
-              .streamName(this.streamName)
-              .partitionKey(agg.getPartitionKey())
-              .sequenceNumberForOrdering(this.sequenceNumberForOrdering)
-              .data(SdkBytes.fromByteArray(agg.toRecordBytes())));
-
-        start.stop();
-
-        log.debug("put {} user records in {}, seq {}", agg.getNumUserRecords(), start.elapsed(), res.sequenceNumber());
-
-        this.sequenceNumberForOrdering = res.sequenceNumber();
-
-        commitedIndex.setVolatileValue(nextIndex);
-
-        this.compositeRegistry
-          .timer("putrecord", "pump", this.instanceId, "shardId", res.shardId())
-          .record(start.elapsed());
-
-        this.compositeRegistry
-          .counter("records.count", "pump", this.instanceId, "shardId", res.shardId())
-          .increment(agg.getNumUserRecords());
-
-        return;
-      }
-      catch (Exception ex) {
-        log.warn("failed to call PutRecord", ex.getMessage());
-        try {
-          Thread.sleep(100);
-        }
-        catch (InterruptedException ex1) {
-          Runtime.getRuntime().halt(1);
-        }
-      }
-
-    }
 
   }
 
@@ -683,41 +372,6 @@ public class Main implements Callable<Integer> {
       throw new RuntimeException(ex);
     }
 
-  }
-
-  private static KinesisEvent convert(String sourceId, AtomicLong seqno, AmiFrame event) {
-
-    ObjectNode jevt = JsonNodeFactory.instance.objectNode();
-    event.forEach((k, v) -> jevt.put(k.toString(), v.toString()));
-
-    // do not pass this header on.
-    jevt.remove("Privilege");
-
-    // remove SystemName if it matches the source id.
-    String source = event.getOrDefault("SystemName", sourceId);
-
-    if (event.scalarContains("SystemName", source)) {
-      jevt.remove("SystemName");
-    }
-
-    return ImmutableKinesisEvent.builder()
-      .source(ImmutableSourceInfo.of(sourceId, seqno.getAndIncrement()))
-      .payload(jevt)
-      .build();
-
-  }
-
-  private static ObjectNode convert(KinesisEvent e, ObjectNode pump) {
-    ObjectNode vals = JsonNodeFactory.instance.objectNode();
-    vals.put("v", 2);
-    vals.set("pump", pump.deepCopy());
-    vals.put("typ", "event");
-    vals.put("at", Instant.now().toString());
-    ObjectNode sourceNode = vals.putObject("src");
-    sourceNode.put("id", e.source().sourceId());
-    sourceNode.put("seq", e.source().sourceSequence());
-    vals.set("event", e.payload());
-    return vals;
   }
 
   private String getStableInstanceID() {
