@@ -12,11 +12,14 @@ allprojects { project ->
       jcenter()
   }
 
-  project.plugins.withId('java') {
-    targetCompatibility = 8
-    sourceCompatibility = 8
+  project.plugins.withId('java') {  
+    java {
+      toolchain {
+        languageVersion = JavaLanguageVersion.of(15)
+      }
+    }  
   }
-
+  
   project.apply plugin: 'eclipse'
   project.apply from: "${rootDir}/gradle/eclipse.gradle"
 
