@@ -36,8 +36,11 @@ import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 import com.google.common.util.concurrent.MoreExecutors;
 
-import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry;
+import io.micrometer.datadog.DatadogConfig;
+import io.micrometer.datadog.DatadogMeterRegistry;
 import io.netlibs.ami.api.AmiFrame;
 import io.netlibs.ami.client.AmiConnection;
 import io.netlibs.ami.client.AmiCredentials;
@@ -110,6 +113,9 @@ public class Main implements Callable<Integer> {
   @Option(names = { "-j" }, description = "journal path")
   private String journalPath = "ami-journal";
 
+  @Option(names = { "--datadog-api-key" }, description = "optional datadog API key")
+  private String datadogApiKey;
+
   @Option(names = { "-s" }, description = "AWS Kinesis stream name to write to", defaultValue = "ami-events")
   private String streamName;
 
@@ -143,7 +149,7 @@ public class Main implements Callable<Integer> {
 
   private String sequenceNumberForOrdering = "0";
 
-  private MeterRegistry compositeRegistry;
+  private CompositeMeterRegistry compositeRegistry;
 
   public HostAndPort target() {
 
@@ -210,7 +216,34 @@ public class Main implements Callable<Integer> {
     journalPath = Paths.get(journalPath).toAbsolutePath().toString();
     log.info("using path: {}", journalPath);
 
-    this.compositeRegistry = new LoggingMeterRegistry();
+    this.compositeRegistry = new CompositeMeterRegistry();
+
+    this.compositeRegistry.add(new LoggingMeterRegistry());
+
+    if (!Strings.isNullOrEmpty(this.datadogApiKey)) {
+
+      this.compositeRegistry.add(
+        new DatadogMeterRegistry(
+          new DatadogConfig() {
+
+            @Override
+            public String prefix() {
+              return "ami2kinesis";
+            }
+
+            @Override
+            public String get(String key) {
+              switch (key) {
+                case "apiKey":
+                  return datadogApiKey;
+              }
+              return null;
+            }
+
+          },
+          Clock.SYSTEM));
+
+    }
 
     this.queue =
       ChronicleQueue.singleBuilder(journalPath)
@@ -352,7 +385,7 @@ public class Main implements Callable<Integer> {
                   }
 
                   compositeRegistry
-                    .counter("ami2kinesis.events.count", "pump", instanceId, "type", friendlyEvent.toLowerCase())
+                    .counter("events.count", "pump", instanceId, "type", friendlyEvent.toLowerCase())
                     .increment();
 
                 }
@@ -562,16 +595,12 @@ public class Main implements Callable<Integer> {
         commitedIndex.setVolatileValue(nextIndex);
 
         this.compositeRegistry
-          .timer("ami2kinesis.putrecord.duration", "pump", this.instanceId, "shardId", res.shardId())
+          .timer("putrecord", "pump", this.instanceId, "shardId", res.shardId())
           .record(start.elapsed());
 
         this.compositeRegistry
-          .counter("ami2kinesis.records.count", "pump", this.instanceId, "shardId", res.shardId())
+          .counter("records.count", "pump", this.instanceId, "shardId", res.shardId())
           .increment(agg.getNumUserRecords());
-
-        this.compositeRegistry
-          .counter("ami2kinesis.putrecord.count", "pump", this.instanceId, "shardId", res.shardId())
-          .increment();
 
         return;
       }
