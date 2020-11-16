@@ -15,8 +15,8 @@ public class EventFilter implements Predicate<String> {
 
   static class NegatableFilter {
 
-    private Predicate<String> predicate;
-    private boolean negated;
+    private final Predicate<String> predicate;
+    private final boolean negated;
 
     public NegatableFilter(Predicate<String> predicate, boolean negated) {
       this.predicate = predicate;

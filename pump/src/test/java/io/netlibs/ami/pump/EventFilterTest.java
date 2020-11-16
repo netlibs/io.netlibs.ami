@@ -16,4 +16,12 @@ class EventFilterTest {
     assertTrue(f.test("Helloss"));
   }
 
+  @Test
+  void test1() {
+    EventFilter f = new EventFilter(Arrays.asList("RTCP*"));
+    assertFalse(f.test(""));
+    assertFalse(f.test("newchannel"));
+    assertTrue(f.test("RTCPEvent"));
+  }
+
 }

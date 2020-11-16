@@ -1,11 +1,15 @@
 package io.netlibs.ami.pump;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
 import java.util.NavigableSet;
 import java.util.Optional;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
@@ -22,6 +26,7 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueStore;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.threads.TimingPauser;
 import net.openhft.chronicle.wire.DocumentContext;
@@ -139,8 +144,13 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
       cycles.forEach(cycle -> {
 
-        // queue.storeForCycle(cycle.intValue(), 0, false, null);
-        log.info("{} cycle {} no longer used", this.streamName, cycle);
+        SingleChronicleQueueStore wireStore = queue.storeForCycle(cycle.intValue(), 0, false, null);
+        if (wireStore != null) {
+          File file = wireStore.file();
+          wireStore.close();
+          log.info("{} cycle {} no longer used, deleting {}", this.streamName, cycle, file.getAbsolutePath());
+          file.delete();
+        }
 
       });
 

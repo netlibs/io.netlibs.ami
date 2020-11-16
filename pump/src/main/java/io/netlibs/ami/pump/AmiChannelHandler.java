@@ -126,16 +126,16 @@ public class AmiChannelHandler extends SimpleChannelInboundHandler<Object> {
         }
 
         if (eventType.equalsIgnoreCase("UserEvent")) {
-          friendlyEvent = frame.getOrDefault("UserEvent", "").toString();
+          friendlyEvent = frame.getOrDefault("UserEvent", "").toString().toLowerCase();
         }
         else {
-          friendlyEvent = eventType;
+          friendlyEvent = eventType.toLowerCase();
         }
 
         try {
 
           this.meterRegistry
-            .counter("events.count", "pump", this.pumpId.id(), "type", friendlyEvent.toLowerCase())
+            .counter("events.count", "pump", this.pumpId.id(), "type", friendlyEvent)
             .increment();
 
         }
@@ -149,7 +149,7 @@ public class AmiChannelHandler extends SimpleChannelInboundHandler<Object> {
       ObjectNode e = convert(evt, pumpNode);
       String output = mapper.writeValueAsString(e) + "\n";
 
-      streams.forEach(stream -> stream.append(friendlyEvent.toLowerCase(), output));
+      streams.forEach(stream -> stream.append(friendlyEvent, output));
 
     }
 
