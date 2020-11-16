@@ -187,7 +187,22 @@ public class Main implements Callable<Integer> {
 
     // setup logging.
     this.compositeRegistry = new CompositeMeterRegistry();
+
+    // compositeRegistry.config()
+    // .meterFilter(
+    // new MeterFilter() {
+    // @Override
+    // public DistributionStatisticConfig configure(Meter.Id id, DistributionStatisticConfig config)
+    // {
+    // return DistributionStatisticConfig.builder()
+    // .percentiles(0.5, 0.75, 0.95, 0.99, 0.9999)
+    // .build()
+    // .merge(config);
+    // }
+    // });
+
     this.compositeRegistry.add(new LoggingMeterRegistry());
+
     if (!Strings.isNullOrEmpty(this.datadogApiKey)) {
       DatadogMeterRegistry datadogRegistry = new DatadogMeterRegistry(new LocalDataDogConfig(this.datadogApiKey), Clock.SYSTEM);
       this.compositeRegistry.add(datadogRegistry);

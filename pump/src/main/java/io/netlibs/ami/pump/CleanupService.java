@@ -15,9 +15,11 @@ public class CleanupService extends AbstractScheduledService {
 
   private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CleanupService.class);
   private ImmutableList<KinesisJournal> streams;
+  private int cyclesToRetain;
 
   public CleanupService(ImmutableList<KinesisJournal> streams) {
     this.streams = streams;
+    this.cyclesToRetain = 12; // with 5 min segments, this is 1 hour retention.
   }
 
   public void execute() {
@@ -49,7 +51,7 @@ public class CleanupService extends AbstractScheduledService {
           continue;
         }
 
-        cleanup(journal, activeCycle - 1);
+        cleanup(journal, activeCycle - cyclesToRetain - 1);
 
       }
       catch (Exception ex) {
