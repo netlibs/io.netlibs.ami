@@ -127,7 +127,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     //
 
     this.compositeRegistry.gauge(
-      "enqueued",
+      "ami2kinesis.enqueued",
       ImmutableList.of(Tag.of("pump", this.pumpId), Tag.of("stream", this.streamName)),
       this,
       t -> queueSize());
@@ -346,11 +346,11 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       queue.lastIndexReplicated(nextIndex);
 
       this.compositeRegistry
-        .timer("putrecord.success", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
+        .timer("ami2kinesis.putrecord.success", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
         .record(start.elapsed());
 
       this.compositeRegistry
-        .counter("records.count", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
+        .counter("ami2kinesis.records.count", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
         .increment(agg.getNumUserRecords());
 
       return true;
@@ -361,7 +361,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       String errorCode = getErrorCode(ex);
 
       this.compositeRegistry
-        .counter("putrecord.error", "pump", this.pumpId, "stream", this.streamName, "error", errorCode)
+        .counter("ami2kinesis.putrecord.error", "pump", this.pumpId, "stream", this.streamName, "error", errorCode)
         .increment();
 
       throw ex;

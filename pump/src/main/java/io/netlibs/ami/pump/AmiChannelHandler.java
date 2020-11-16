@@ -132,16 +132,9 @@ public class AmiChannelHandler extends SimpleChannelInboundHandler<Object> {
           friendlyEvent = eventType.toLowerCase();
         }
 
-        try {
-
-          this.meterRegistry
-            .counter("events.count", "pump", this.pumpId.id(), "type", friendlyEvent)
-            .increment();
-
-        }
-        catch (Exception ex) {
-          log.warn("error recording event", ex.getMessage());
-        }
+        this.meterRegistry
+          .counter("ami2kinesis.rx.events", "pump", this.pumpId.id(), "type", friendlyEvent)
+          .increment();
 
       }
 

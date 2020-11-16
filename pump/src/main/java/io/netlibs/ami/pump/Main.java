@@ -189,7 +189,8 @@ public class Main implements Callable<Integer> {
     this.compositeRegistry = new CompositeMeterRegistry();
     this.compositeRegistry.add(new LoggingMeterRegistry());
     if (!Strings.isNullOrEmpty(this.datadogApiKey)) {
-      this.compositeRegistry.add(new DatadogMeterRegistry(new LocalDataDogConfig(this.datadogApiKey), Clock.SYSTEM));
+      DatadogMeterRegistry datadogRegistry = new DatadogMeterRegistry(new LocalDataDogConfig(this.datadogApiKey), Clock.SYSTEM);
+      this.compositeRegistry.add(datadogRegistry);
     }
 
     this.credentialsProvider = DefaultCredentialsProvider.create();
