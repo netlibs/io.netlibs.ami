@@ -8,9 +8,6 @@ import java.text.ParseException;
 import java.util.NavigableSet;
 import java.util.Optional;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -60,7 +57,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private StoreListener storeListener;
   private LongValue commitedIndex;
 
-  private long latestIndex;
+  private volatile long latestIndex;
 
   public KinesisJournal(
       Path dataroot,
@@ -240,7 +237,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   public void append(String friendlyName, String json) {
 
-    if (!filter.test(friendlyName)) {
+    if (!this.filter.test(friendlyName)) {
       return;
     }
 
@@ -249,6 +246,8 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     try (final DocumentContext dc = appender.writingDocument()) {
       dc.wire().write().text(json);
     }
+
+    this.latestIndex = appender.lastIndexAppended();
 
     pauser.unpause();
 
