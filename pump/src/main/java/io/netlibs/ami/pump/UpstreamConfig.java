@@ -14,8 +14,7 @@ public class UpstreamConfig {
   String streamName;
 
   @Option(names = { "--filter" },
-      description = "comma seperated event filter to apply. use '-' before a filter to exclude. wildcards may be used.",
-      defaultValue = "*")
+      description = "comma seperated event filter to apply. use '-' before a filter to exclude. wildcards may be used.")
   List<String> filters = new ArrayList<>();
 
   @Option(names = { "--key" }, description = "AWS Kinesis partition to write to (default uses SystemName in frames)")
