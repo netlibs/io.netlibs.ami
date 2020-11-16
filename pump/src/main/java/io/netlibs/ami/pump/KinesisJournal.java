@@ -4,11 +4,13 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.Optional;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -28,7 +30,9 @@ import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.threads.TimingPauser;
 import net.openhft.chronicle.wire.DocumentContext;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kinesis.KinesisClient;
 import software.amazon.awssdk.services.kinesis.model.PutRecordResponse;
@@ -277,35 +281,75 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   private boolean tryRead(ExcerptTailer tailer) {
 
-    RecordAggregator agg = new RecordAggregator();
+    long position = commitedIndex.getVolatileValue();
 
-    agg.onRecordComplete(
-      record -> flush(record, tailer.index(), commitedIndex),
-      MoreExecutors.directExecutor());
+    // move the tailer back to the commited index.
+    if (position > 0) {
+      tailer.moveToIndex(commitedIndex.getVolatileValue());
+    }
+    else {
+      tailer.toStart();
+    }
 
-    while (this.isRunning()) {
+    try {
 
-      String nextDoc = readDoc(tailer);
+      RecordAggregator agg = new RecordAggregator();
 
-      if (nextDoc == null) {
-        break;
+      agg.onRecordComplete(
+        record -> flush(record, tailer.index(), commitedIndex),
+        MoreExecutors.directExecutor());
+
+      while (this.isRunning()) {
+
+        String nextDoc = readDoc(tailer);
+
+        if (nextDoc == null) {
+          break;
+        }
+
+        agg.addUserRecord(this.partitionKey, nextDoc.getBytes(StandardCharsets.UTF_8));
+
       }
+
+      if (agg.getNumUserRecords() > 0) {
+        flush(agg.clearAndGet(), tailer.index(), commitedIndex);
+      }
+
+      return false;
+
+    }
+    catch (SdkException ex) {
+
+      // this is an AWS exception. we continue processing.
+      String errorCode = getErrorCode(ex);
+
+      log.warn("AWS SDK error: {}", errorCode, ex.getMessage());
 
       try {
-        agg.addUserRecord(this.partitionKey, nextDoc.getBytes(StandardCharsets.UTF_8));
+
+        if (ex.retryable()) {
+          // we want to retry pretty much straight away.
+          Thread.sleep(Duration.ofMillis(10).toMillis());
+          return true;
+        }
+
+        // this is a non retryable error, so we sleep before returning.
+        Thread.sleep(Duration.ofSeconds(1).toMillis());
+
       }
-      catch (Exception e) {
-        log.error("failed to add user records, aborting process.");
-        Runtime.getRuntime().halt(1);
+      catch (InterruptedException e) {
+        throw new RuntimeException(e);
       }
+
+      return true;
 
     }
+    catch (Exception ex) {
 
-    if (agg.getNumUserRecords() > 0) {
-      flush(agg.clearAndGet(), tailer.index(), commitedIndex);
+      log.error("propogating unknown error: {}", ex.getMessage(), ex);
+      throw new RuntimeException(ex);
+
     }
-
-    return false;
 
   }
 
@@ -318,47 +362,62 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     return null;
   }
 
-  private void flush(AggRecord agg, long nextIndex, LongValue commitedIndex) {
+  private boolean flush(AggRecord agg, long nextIndex, LongValue commitedIndex) {
 
-    Stopwatch start = Stopwatch.createStarted();
+    try {
+      Stopwatch start = Stopwatch.createStarted();
 
-    while (true) {
-      try {
+      PutRecordResponse res =
+        kinesis.putRecord(
+          b -> b
+            .streamName(this.streamName)
+            .partitionKey(agg.getPartitionKey())
+            .sequenceNumberForOrdering(this.sequenceNumberForOrdering)
+            .data(SdkBytes.fromByteArray(agg.toRecordBytes())));
 
-        PutRecordResponse res =
-          kinesis.putRecord(
-            b -> b
-              .streamName(this.streamName)
-              .partitionKey(agg.getPartitionKey())
-              .sequenceNumberForOrdering(this.sequenceNumberForOrdering)
-              .data(SdkBytes.fromByteArray(agg.toRecordBytes())));
+      start.stop();
 
-        start.stop();
+      // this is only reached if we put sucessfully.
 
-        log.debug("put {} user records in {}, seq {}", agg.getNumUserRecords(), start.elapsed(), res.sequenceNumber());
+      log.debug("put {} user records in {}, seq {}", agg.getNumUserRecords(), start.elapsed(), res.sequenceNumber());
 
-        this.sequenceNumberForOrdering = res.sequenceNumber();
+      this.sequenceNumberForOrdering = res.sequenceNumber();
 
-        commitedIndex.setVolatileValue(nextIndex);
+      commitedIndex.setVolatileValue(nextIndex);
 
-        this.compositeRegistry
-          .timer("putrecord", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
-          .record(start.elapsed());
+      this.compositeRegistry
+        .timer("putrecord.success", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
+        .record(start.elapsed());
 
-        this.compositeRegistry
-          .counter("records.count", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
-          .increment(agg.getNumUserRecords());
+      this.compositeRegistry
+        .counter("records.count", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
+        .increment(agg.getNumUserRecords());
 
-        return;
-      }
-      catch (Exception ex) {
-        // this only happens after Integer.MAX_VALUE retries has been reached. uefg!
-        log.warn("failed to call PutRecord: {}", ex.getMessage());
-        Runtime.getRuntime().halt(1);
-      }
+      return true;
+
+    }
+    catch (SdkException ex) {
+
+      String errorCode = getErrorCode(ex);
+
+      this.compositeRegistry
+        .counter("putrecord.error", "pump", this.pumpId, "stream", this.streamName, "error", errorCode)
+        .increment();
+
+      throw ex;
 
     }
 
+  }
+
+  private String getErrorCode(SdkException ex) {
+    try {
+      Throwables.throwIfInstanceOf(ex, AwsServiceException.class);
+      return ex.getClass().toString();
+    }
+    catch (AwsServiceException awsex) {
+      return "aws:" + awsex.awsErrorDetails().serviceName() + ":" + awsex.awsErrorDetails().errorCode();
+    }
   }
 
 }

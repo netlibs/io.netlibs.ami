@@ -1,5 +1,6 @@
 package io.netlibs.ami.pump.utils;
 
+
 /**
  * Kinesis Aggregation/Deaggregation Libraries for Java
  *
@@ -22,6 +23,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
 import javax.annotation.concurrent.NotThreadSafe;
+
 
 import software.amazon.kinesis.retrieval.KinesisClientRecord;
 

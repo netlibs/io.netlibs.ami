@@ -9,6 +9,10 @@ mainClassName = 'io.netlibs.ami.pump.Main'
 
 
 jib {
+  from {
+    // use JRE 15 openjdk image.
+    image = 'adoptopenjdk:15-jre-openj9' 
+  }
   container {
     jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
     format = 'Docker'
@@ -29,6 +33,9 @@ repositories {
   
 }
 
+eclipse.jdt.sourceCompatibility = 15
+eclipse.jdt.targetCompatibility = 15
+
 application {
   applicationDefaultJvmArgs = ['--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED']
 }
@@ -42,6 +49,10 @@ dependencies {
 
   annotationProcessor 'org.immutables:value:2.8.8'
   compileOnly 'org.immutables:value-annotations:2.8.8'
+  
+  // implementation platform('io.github.resilience4j:resilience4j-bom:1.6.1')
+  // implementation 'io.github.resilience4j:resilience4j-retry'
+  // implementation 'io.github.resilience4j:resilience4j-ratelimiter'
   
   implementation 'software.amazon.awssdk:auth'
   implementation 'software.amazon.awssdk:sts'

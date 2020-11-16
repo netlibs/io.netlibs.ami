@@ -152,6 +152,8 @@ public class Main implements Callable<Integer> {
         throw new IllegalArgumentException(String.format("specified config file %s does not exist", this.configPath));
       }
     }
+    
+//    dataRoot = dataRoot.t
 
     // try to find automatically.
     if (this.password == null) {
