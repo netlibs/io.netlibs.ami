@@ -93,10 +93,11 @@ public class AmiChannelHandler extends SimpleChannelInboundHandler<Object> {
       AmiFrame frame = (AmiFrame) msg;
 
       CharSequence res = frame.get("Response");
+      String eventType = frame.getOrDefault("Event", "").toString();
 
       String friendlyEvent;
 
-      if (res != null) {
+      if ((res != null) && eventType.isEmpty()) {
 
         if (res.equals("Error")) {
           log.error("got aim frame error: {}", frame);
@@ -112,8 +113,6 @@ public class AmiChannelHandler extends SimpleChannelInboundHandler<Object> {
 
       }
       else {
-
-        String eventType = frame.getOrDefault("Event", "").toString();
 
         if (eventType.isEmpty()) {
           log.error("invalid Event frame (missing Event): {}", frame);

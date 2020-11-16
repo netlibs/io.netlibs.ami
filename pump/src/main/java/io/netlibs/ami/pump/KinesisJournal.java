@@ -26,7 +26,6 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.threads.Pauser;
-import net.openhft.chronicle.threads.TimingPauser;
 import net.openhft.chronicle.wire.DocumentContext;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -51,7 +50,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private MeterRegistry compositeRegistry;
   private String pumpId;
   private KinesisClient kinesis;
-  private TimingPauser pauser;
+  private Pauser pauser;
   private EventFilter filter;
   private Path path;
   private AtomicLong latestIndex = new AtomicLong();
@@ -112,7 +111,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.streamName = config.streamName;
     this.partitionKey = Optional.ofNullable(config.partitionKey).orElse(this.pumpId);
 
-    this.pauser = Pauser.balanced();
+    this.pauser = Pauser.yielding();
 
     this.kinesis =
       KinesisClient.builder()
