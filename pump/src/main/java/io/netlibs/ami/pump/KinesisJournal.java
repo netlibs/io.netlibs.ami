@@ -4,6 +4,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.Optional;
 
@@ -104,7 +105,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
         .overrideConfiguration(b -> b.retryPolicy(r -> r.numRetries(Integer.MAX_VALUE)))
         .build();
 
-    this.filter = new EventFilter(config.filters);
+    this.filter = new EventFilter(Arrays.asList(config.filter));
 
     //
 

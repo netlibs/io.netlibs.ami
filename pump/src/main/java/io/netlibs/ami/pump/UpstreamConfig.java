@@ -1,8 +1,5 @@
 package io.netlibs.ami.pump;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import picocli.CommandLine.Option;
 
 public class UpstreamConfig {
@@ -15,7 +12,7 @@ public class UpstreamConfig {
 
   @Option(names = { "--filter" },
       description = "comma seperated event filter to apply. use '-' before a filter to exclude. wildcards may be used.")
-  List<String> filters = new ArrayList<>();
+  String filter;
 
   @Option(names = { "--key" }, description = "AWS Kinesis partition to write to (default uses SystemName in frames)")
   String partitionKey;
