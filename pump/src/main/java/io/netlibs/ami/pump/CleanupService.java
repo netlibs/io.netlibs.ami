@@ -82,7 +82,7 @@ public class CleanupService extends AbstractScheduledService {
 
     int currentCycle = journal.firstCycle();
 
-    do {
+    while ((currentCycle != -1) && (currentCycle < untilCycle)) {
 
       int nextCycle = journal.nextCycle(currentCycle, TailerDirection.FORWARD);
 
@@ -118,7 +118,6 @@ public class CleanupService extends AbstractScheduledService {
       currentCycle = nextCycle;
 
     }
-    while ((currentCycle != -1) && (currentCycle < untilCycle));
 
   }
 
