@@ -18,8 +18,10 @@ public class LocalDataDogConfig implements DatadogConfig {
   @Override
   public String get(String key) {
     switch (key) {
-      case "apiKey":
+      case "ami2kinesis.apiKey":
         return apiKey;
+      case "ami2kinesis.hostTag":
+        return "pump";
     }
     return null;
   }
