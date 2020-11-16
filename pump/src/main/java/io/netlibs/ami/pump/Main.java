@@ -222,9 +222,6 @@ public class Main implements Callable<Integer> {
 
     CleanupService cleaner = new CleanupService(this.streams);
 
-    // do a single pass clean initially, before starting up.
-    cleaner.execute();
-
     services.addAll(this.streams);
     services.add(cleaner);
 

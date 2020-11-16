@@ -1,6 +1,8 @@
 package io.netlibs.ami.pump;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -49,11 +51,8 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private MeterRegistry compositeRegistry;
   private String pumpId;
   private KinesisClient kinesis;
-
   private TimingPauser pauser;
-
   private EventFilter filter;
-
   private Path path;
   private LongValue commitedIndex;
 
@@ -73,9 +72,24 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
     this.path = dataroot.resolve(Paths.get(Optional.ofNullable(config.journalPath).orElse(config.streamName))).toAbsolutePath();
 
+    if (!Files.isDirectory(path)) {
+      try {
+        Files.createDirectories(path);
+      }
+      catch (IOException e) {
+        // TODO Auto-generated catch block
+        throw new RuntimeException(e);
+      }
+    }
+
+    RollCycles rollCycle = RollCycles.FIVE_MINUTELY;
+
+    log.info("opening store at {}: {}", this.path, rollCycle);
+
     this.queue =
       ChronicleQueue.singleBuilder(path)
-        .rollCycle(RollCycles.FIVE_MINUTELY)
+        .rollCycle(rollCycle)
+        .readOnly(false)
         .build();
 
     this.credentialsProvider =
@@ -92,7 +106,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.partitionKey = Optional.ofNullable(config.partitionKey).orElse(this.pumpId);
 
     this.pauser = Pauser.balanced();
-    this.commitedIndex = queue.metaStore().acquireValueFor("kinesis.position", 0);
+    this.commitedIndex = this.queue.metaStore().acquireValueFor("kinesis.position", 0);
 
     this.kinesis =
       KinesisClient.builder()

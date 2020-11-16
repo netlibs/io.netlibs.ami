@@ -21,6 +21,7 @@ public class CleanupService extends AbstractScheduledService {
   }
 
   public void execute() {
+    log.info("performing cleaning pass");
     for (KinesisJournal stream : streams) {
       try {
 
@@ -55,6 +56,7 @@ public class CleanupService extends AbstractScheduledService {
         log.error("exception caught while trying to clean up stream {}: {}", stream.toString(), ex.getMessage(), ex);
       }
     }
+    log.info("completed cleaning pass.");
   }
 
   @Override
