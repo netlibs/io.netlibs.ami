@@ -116,6 +116,11 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   }
 
+  @Override
+  protected String serviceName() {
+    return getClass().getSimpleName() + "-" + streamName;
+  }
+
   public void cleanup() {
 
     try {
@@ -198,6 +203,8 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   @Override
   protected void run() throws Exception {
+
+    log.info("filter is: {}", this.filter);
 
     this.cleanup();
 

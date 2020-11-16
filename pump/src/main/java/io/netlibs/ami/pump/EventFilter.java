@@ -3,6 +3,7 @@ package io.netlibs.ami.pump;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
@@ -27,6 +28,14 @@ public class EventFilter implements Predicate<String> {
       return predicate.test(in);
     }
 
+    @Override
+    public String toString() {
+      if (negated) {
+        return "not(" + this.predicate.toString() + ")";
+      }
+      return this.predicate.toString();
+    }
+
   }
 
   public EventFilter(List<String> filters) {
@@ -46,9 +55,24 @@ public class EventFilter implements Predicate<String> {
       negate = true;
     }
 
-    Pattern matcher = Pattern.compile(Globs.toUnixRegexPattern(pattern.toLowerCase()));
+    final String regex = Globs.toUnixRegexPattern(pattern.toLowerCase());
+    final Pattern matcher = Pattern.compile(regex);
 
-    Predicate<String> predicate = matcher.asPredicate();
+    Predicate<String> predicate = new Predicate<String>() {
+
+      final Predicate<String> inner = matcher.asMatchPredicate();
+
+      @Override
+      public boolean test(String input) {
+        return inner.test(input);
+      }
+
+      @Override
+      public String toString() {
+        return regex;
+      }
+
+    };
 
     if (negate) {
       return new NegatableFilter(predicate, true);
@@ -71,6 +95,11 @@ public class EventFilter implements Predicate<String> {
       }
     }
     return match;
+  }
+
+  @Override
+  public String toString() {
+    return this.filters.stream().map(e -> e.toString()).collect(Collectors.joining(", "));
   }
 
 }

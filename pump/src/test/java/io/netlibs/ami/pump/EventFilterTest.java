@@ -14,6 +14,7 @@ class EventFilterTest {
     EventFilter f = new EventFilter(Arrays.asList("Hel*", "-Hello"));
     assertFalse(f.test("Hello"));
     assertTrue(f.test("Helloss"));
+    System.err.println(f);
   }
 
   @Test
@@ -22,6 +23,7 @@ class EventFilterTest {
     assertFalse(f.test(""));
     assertFalse(f.test("newchannel"));
     assertTrue(f.test("RTCPEvent"));
+    System.err.println(f);
   }
 
 }
