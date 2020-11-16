@@ -19,7 +19,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.netlibs.ami.pump.utils.AggRecord;
 import io.netlibs.ami.pump.utils.RecordAggregator;
-import net.openhft.chronicle.core.values.LongValue;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -54,7 +53,6 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private TimingPauser pauser;
   private EventFilter filter;
   private Path path;
-  private LongValue commitedIndex;
 
   private volatile long latestIndex;
 
@@ -106,7 +104,6 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.partitionKey = Optional.ofNullable(config.partitionKey).orElse(this.pumpId);
 
     this.pauser = Pauser.balanced();
-    this.commitedIndex = this.queue.metaStore().acquireValueFor("kinesis.position", 0);
 
     this.kinesis =
       KinesisClient.builder()
@@ -134,10 +131,10 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   }
 
   public int readerCycle() {
-    if (this.commitedIndex == null) {
+    long index = this.queue.lastIndexReplicated();
+    if (index == -1) {
       return 0;
     }
-    long index = this.commitedIndex.getVolatileValue();
     if (index == 0) {
       return 0;
     }
@@ -146,9 +143,9 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   long queueSize() {
 
-    long lowerIndex = commitedIndex.getVolatileValue();
+    long lowerIndex = queue.lastIndexReplicated();
 
-    if ((lowerIndex == Long.MAX_VALUE) || (lowerIndex == 0)) {
+    if (lowerIndex == -1) {
       return 0;
     }
 
@@ -168,14 +165,13 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   @Override
   protected void run() throws Exception {
 
-    log.info("filter is: {}", this.filter);
-
     //
 
     ExcerptTailer tailer = queue.createTailer();
+
     this.latestIndex = tailer.toEnd().index();
 
-    long index = commitedIndex.getVolatileValue();
+    long index = queue.lastIndexReplicated();
 
     //
 
@@ -238,11 +234,13 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   private boolean tryRead(ExcerptTailer tailer) {
 
-    long position = commitedIndex.getVolatileValue();
+    long position = queue.lastIndexReplicated();
+    
+    // commitedIndex.getVolatileValue();
 
     // move the tailer back to the commited index.
     if (position > 0) {
-      tailer.moveToIndex(commitedIndex.getVolatileValue());
+      tailer.moveToIndex(position);
     }
     else {
       tailer.toStart();
@@ -253,7 +251,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       RecordAggregator agg = new RecordAggregator();
 
       agg.onRecordComplete(
-        record -> flush(record, tailer.index(), commitedIndex),
+        record -> flush(record, tailer.index()),
         MoreExecutors.directExecutor());
 
       while (this.isRunning()) {
@@ -269,7 +267,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       }
 
       if (agg.getNumUserRecords() > 0) {
-        flush(agg.clearAndGet(), tailer.index(), commitedIndex);
+        flush(agg.clearAndGet(), tailer.index());
       }
 
       return false;
@@ -319,7 +317,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     return null;
   }
 
-  private boolean flush(AggRecord agg, long nextIndex, LongValue commitedIndex) {
+  private boolean flush(AggRecord agg, long nextIndex) {
 
     try {
       Stopwatch start = Stopwatch.createStarted();
@@ -340,7 +338,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
       this.sequenceNumberForOrdering = res.sequenceNumber();
 
-      commitedIndex.setVolatileValue(nextIndex);
+      queue.lastIndexReplicated(nextIndex);
 
       this.compositeRegistry
         .timer("putrecord.success", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
@@ -382,7 +380,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   }
 
   public long commitedIndex() {
-    return this.commitedIndex.getVolatileValue();
+    return this.queue.lastIndexReplicated();
   }
 
   public long latestIndex() {

@@ -10,8 +10,8 @@ mainClassName = 'io.netlibs.ami.pump.Main'
 
 jib {
   from {
-    // use JRE 15 openjdk image.
-    image = 'adoptopenjdk:15-jre-openj9' 
+    // or open9...
+    image = 'adoptopenjdk:11-jre-hotspot' 
   }
   container {
     jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
@@ -33,8 +33,8 @@ repositories {
   
 }
 
-eclipse.jdt.sourceCompatibility = 14
-eclipse.jdt.targetCompatibility = 14
+eclipse.jdt.sourceCompatibility = 11
+eclipse.jdt.targetCompatibility = 11
 
 application {
   applicationDefaultJvmArgs = ['--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED']
