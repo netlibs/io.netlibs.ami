@@ -42,6 +42,7 @@ public class EventFilter implements Predicate<String> {
     this.filters =
       filters.stream()
         .flatMap(e -> Splitter.on(",").trimResults().omitEmptyStrings().splitToStream(e))
+        .filter(e -> e.length() > 0)
         .map(e -> build(e))
         .collect(ImmutableList.toImmutableList());
   }
@@ -55,7 +56,8 @@ public class EventFilter implements Predicate<String> {
       negate = true;
     }
 
-    final String regex = Globs.toUnixRegexPattern(pattern.toLowerCase());
+    final String input = pattern.toLowerCase();
+    final String regex = Globs.toUnixRegexPattern(input);
     final Pattern matcher = Pattern.compile(regex);
 
     Predicate<String> predicate = new Predicate<String>() {
@@ -69,7 +71,7 @@ public class EventFilter implements Predicate<String> {
 
       @Override
       public String toString() {
-        return regex;
+        return regex + "('" + input + "')";
       }
 
     };
