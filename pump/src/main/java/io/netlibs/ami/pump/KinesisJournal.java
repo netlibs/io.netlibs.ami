@@ -4,7 +4,6 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.ParseException;
 import java.util.NavigableSet;
 import java.util.Optional;
 
@@ -137,11 +136,16 @@ public class KinesisJournal extends AbstractExecutionThreadService {
         return;
       }
 
-      NavigableSet<Long> cycles = queue.listCyclesBetween(lowerCycle, upperCycle - 1);
+      if ((upperCycle < queue.firstCycle()) || (upperCycle > queue.lastCycle())) {
+        return;
+      }
+
+      NavigableSet<Long> cycles = queue.listCyclesBetween(lowerCycle, upperCycle);
 
       cycles.forEach(cycle -> {
 
         SingleChronicleQueueStore wireStore = queue.storeForCycle(cycle.intValue(), 0, false, null);
+
         if (wireStore != null) {
           File file = wireStore.file();
           wireStore.close();
@@ -152,8 +156,10 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       });
 
     }
-    catch (ParseException e) {
+    catch (Exception e) {
+
       log.error("failed to cleanup {}: {}", streamName, e.getMessage());
+
     }
 
   }
