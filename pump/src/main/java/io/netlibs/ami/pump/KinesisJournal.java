@@ -1,12 +1,10 @@
 package io.netlibs.ami.pump;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.NavigableSet;
 import java.util.Optional;
 
 import com.google.common.base.Stopwatch;
@@ -25,7 +23,6 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueStore;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.threads.TimingPauser;
 import net.openhft.chronicle.wire.DocumentContext;
@@ -58,7 +55,6 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private EventFilter filter;
 
   private Path path;
-  private StoreListener storeListener;
   private LongValue commitedIndex;
 
   private volatile long latestIndex;
@@ -77,11 +73,8 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
     this.path = dataroot.resolve(Paths.get(Optional.ofNullable(config.journalPath).orElse(config.streamName))).toAbsolutePath();
 
-    this.storeListener = new StoreListener(config.streamName, this::readerCycle);
-
     this.queue =
       ChronicleQueue.singleBuilder(path)
-        .storeFileListener(this.storeListener)
         .rollCycle(RollCycles.FIVE_MINUTELY)
         .build();
 
@@ -126,55 +119,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     return getClass().getSimpleName() + "-" + streamName;
   }
 
-  public void cleanup() {
-
-    try {
-
-      long lowerIndex = queue.firstIndex();
-
-      if (lowerIndex == Long.MAX_VALUE) {
-        log.info("no clean as initial index is not present");
-        return;
-      }
-
-      int lowerCycle = queue.rollCycle().toCycle(lowerIndex);
-      int upperCycle = this.readerCycle() - 1;
-
-      log.info("attemting cleanup on {} for cycles {} -> {}", streamName, lowerCycle, upperCycle);
-
-      if (lowerCycle >= upperCycle) {
-        return;
-      }
-
-      if ((upperCycle < queue.firstCycle()) || (upperCycle > queue.lastCycle())) {
-        return;
-      }
-
-      NavigableSet<Long> cycles = queue.listCyclesBetween(lowerCycle, upperCycle);
-
-      cycles.forEach(cycle -> {
-
-        SingleChronicleQueueStore wireStore = queue.storeForCycle(cycle.intValue(), 0, false, null);
-
-        if (wireStore != null) {
-          File file = wireStore.file();
-          wireStore.close();
-          log.info("{} cycle {} no longer used, deleting {}", this.streamName, cycle, file.getAbsolutePath());
-          file.delete();
-        }
-
-      });
-
-    }
-    catch (Exception e) {
-
-      log.error("failed to cleanup {}: {}", streamName, e.getMessage());
-
-    }
-
-  }
-
-  int readerCycle() {
+  public int readerCycle() {
     if (this.commitedIndex == null) {
       return 0;
     }
@@ -210,8 +155,6 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   protected void run() throws Exception {
 
     log.info("filter is: {}", this.filter);
-
-    this.cleanup();
 
     //
 
@@ -418,6 +361,18 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     catch (AwsServiceException awsex) {
       return "aws:" + awsex.awsErrorDetails().serviceName() + ":" + awsex.awsErrorDetails().errorCode();
     }
+  }
+
+  public SingleChronicleQueue journal() {
+    return this.queue;
+  }
+
+  public long commitedIndex() {
+    return this.commitedIndex.getVolatileValue();
+  }
+
+  public long latestIndex() {
+    return this.latestIndex;
   }
 
 }

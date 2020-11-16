@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import com.google.common.primitives.UnsignedInts;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
 
 import io.micrometer.core.instrument.Clock;
@@ -152,8 +153,8 @@ public class Main implements Callable<Integer> {
         throw new IllegalArgumentException(String.format("specified config file %s does not exist", this.configPath));
       }
     }
-    
-//    dataRoot = dataRoot.t
+
+    // dataRoot = dataRoot.t
 
     // try to find automatically.
     if (this.password == null) {
@@ -215,7 +216,19 @@ public class Main implements Callable<Integer> {
           stsClient))
         .collect(ImmutableList.toImmutableList());
 
-    ServiceManager serviceManager = new ServiceManager(streams);
+    // streams
+
+    ArrayList<Service> services = new ArrayList<>();
+
+    CleanupService cleaner = new CleanupService(this.streams);
+
+    // do a single pass clean initially, before starting up.
+    cleaner.execute();
+
+    services.addAll(this.streams);
+    services.add(cleaner);
+
+    ServiceManager serviceManager = new ServiceManager(services);
     serviceManager.addListener(new AmiServiceManagerListener(), MoreExecutors.directExecutor());
     serviceManager.startAsync();
 

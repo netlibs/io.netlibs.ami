@@ -1,6 +1,5 @@
 package io.netlibs.ami.pump.utils;
 
-
 /**
  * Kinesis Aggregation/Deaggregation Libraries for Java
  *
@@ -22,9 +21,6 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
-import javax.annotation.concurrent.NotThreadSafe;
-
-
 import software.amazon.kinesis.retrieval.KinesisClientRecord;
 
 /**
@@ -36,8 +32,9 @@ import software.amazon.kinesis.retrieval.KinesisClientRecord;
  * @see <a href=
  *      "https://github.com/awslabs/amazon-kinesis-producer/blob/master/aggregation-format.md">https://github.com/awslabs/amazon-kinesis-producer/blob/master/aggregation-format.md</a>
  */
-@NotThreadSafe
+
 public class RecordAggregator {
+
   /**
    * A listener interface for receiving notifications when this aggregated record has reached its
    * maximum allowable size.
