@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
@@ -53,8 +54,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private TimingPauser pauser;
   private EventFilter filter;
   private Path path;
-
-  private volatile long latestIndex;
+  private AtomicLong latestIndex = new AtomicLong();
 
   public KinesisJournal(
       Path dataroot,
@@ -89,6 +89,15 @@ public class KinesisJournal extends AbstractExecutionThreadService {
         .rollCycle(rollCycle)
         .readOnly(false)
         .build();
+
+    try (ExcerptTailer tailer = queue.createTailer()) {
+      tailer.toEnd();
+      long next = tailer.index();
+      if ((next > 0) && (next != Long.MAX_VALUE)) {
+        this.latestIndex.set(next);
+      }
+      log.info("latestIndex is {}", next, this.latestIndex.get());
+    }
 
     this.credentialsProvider =
       Optional.ofNullable(config.assumeRole)
@@ -149,11 +158,13 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       return 0;
     }
 
-    if (lowerIndex >= latestIndex) {
+    long currentIndex = latestIndex.get();
+
+    if (lowerIndex >= currentIndex) {
       return 0;
     }
 
-    return queue.countExcerpts(lowerIndex, latestIndex);
+    return queue.countExcerpts(lowerIndex, currentIndex);
 
   }
 
@@ -166,10 +177,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   protected void run() throws Exception {
 
     //
-
     ExcerptTailer tailer = queue.createTailer();
-
-    this.latestIndex = tailer.toEnd().index();
 
     long index = queue.lastIndexReplicated();
 
@@ -189,11 +197,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
     }
 
-    long pendingEvents =
-      tailer.index() >= latestIndex ? 0
-                                    : queue.countExcerpts(tailer.index(), latestIndex);
-
-    log.info("commited index for {} is {} with latest index at {} - {} events buffered.", this.streamName, index, latestIndex, pendingEvents);
+    log.info("commited index for {} is {} with latest index at {} - {} events buffered.", this.streamName, index, latestIndex, queueSize());
 
     while (this.isRunning()) {
       if (tryRead(tailer)) {
@@ -218,7 +222,8 @@ public class KinesisJournal extends AbstractExecutionThreadService {
       dc.wire().write().text(json);
     }
 
-    this.latestIndex = appender.lastIndexAppended();
+    long lastAppended = appender.lastIndexAppended();
+    this.latestIndex.getAndUpdate(val -> Math.max(val, lastAppended));
 
     pauser.unpause();
 
@@ -235,7 +240,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   private boolean tryRead(ExcerptTailer tailer) {
 
     long position = queue.lastIndexReplicated();
-    
+
     // commitedIndex.getVolatileValue();
 
     // move the tailer back to the commited index.
