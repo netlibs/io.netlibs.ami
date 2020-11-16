@@ -389,7 +389,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   }
 
   public long latestIndex() {
-    return this.latestIndex;
+    return this.latestIndex.get();
   }
 
 }
