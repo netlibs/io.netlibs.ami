@@ -3,13 +3,17 @@ package io.netlibs.ami.pump;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.ParseException;
+import java.util.NavigableSet;
 import java.util.Optional;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.netlibs.ami.pump.utils.AggRecord;
 import io.netlibs.ami.pump.utils.RecordAggregator;
 import net.openhft.chronicle.core.values.LongValue;
@@ -47,6 +51,12 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
   private EventFilter filter;
 
+  private Path path;
+  private StoreListener storeListener;
+  private LongValue commitedIndex;
+
+  private long latestIndex;
+
   public KinesisJournal(
       Path dataroot,
       UpstreamConfig config,
@@ -59,8 +69,13 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.pumpId = pumpId;
     this.region = region;
 
+    this.path = dataroot.resolve(Paths.get(Optional.ofNullable(config.journalPath).orElse(config.streamName))).toAbsolutePath();
+
+    this.storeListener = new StoreListener(config.streamName, this::readerCycle);
+
     this.queue =
-      ChronicleQueue.singleBuilder(dataroot.resolve(Paths.get(Optional.ofNullable(config.journalPath).orElse(config.streamName))).toAbsolutePath())
+      ChronicleQueue.singleBuilder(path)
+        .storeFileListener(this.storeListener)
         .rollCycle(RollCycles.TWENTY_MINUTELY)
         .build();
 
@@ -76,7 +91,9 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.compositeRegistry = registry;
     this.streamName = config.streamName;
     this.partitionKey = Optional.ofNullable(config.partitionKey).orElse(this.pumpId);
+
     this.pauser = Pauser.balanced();
+    this.commitedIndex = queue.metaStore().acquireValueFor("kinesis.position", 0);
 
     this.kinesis =
       KinesisClient.builder()
@@ -88,6 +105,77 @@ public class KinesisJournal extends AbstractExecutionThreadService {
 
     this.filter = new EventFilter(config.filters);
 
+    //
+
+    this.compositeRegistry.gauge(
+      "enqueued",
+      ImmutableList.of(Tag.of("pump", this.pumpId), Tag.of("stream", this.streamName)),
+      this,
+      t -> queueSize());
+
+  }
+
+  public void cleanup() {
+
+    try {
+
+      long lowerIndex = queue.firstIndex();
+
+      if (lowerIndex == Long.MAX_VALUE) {
+        log.info("no clean as initial index is not present");
+        return;
+      }
+
+      int lowerCycle = queue.rollCycle().toCycle(lowerIndex);
+      int upperCycle = this.readerCycle() - 1;
+
+      log.info("attemting cleanup on {} for cycles {} -> {}", streamName, lowerCycle, upperCycle);
+
+      if (lowerCycle >= upperCycle) {
+        return;
+      }
+
+      NavigableSet<Long> cycles = queue.listCyclesBetween(lowerCycle, upperCycle - 1);
+
+      cycles.forEach(cycle -> {
+
+        // queue.storeForCycle(cycle.intValue(), 0, false, null);
+        log.info("{} cycle {} no longer used", this.streamName, cycle);
+
+      });
+
+    }
+    catch (ParseException e) {
+      log.error("failed to cleanup {}: {}", streamName, e.getMessage());
+    }
+
+  }
+
+  int readerCycle() {
+    if (this.commitedIndex == null) {
+      return 0;
+    }
+    long index = this.commitedIndex.getVolatileValue();
+    if (index == 0) {
+      return 0;
+    }
+    return queue.rollCycle().toCycle(index);
+  }
+
+  long queueSize() {
+
+    long lowerIndex = commitedIndex.getVolatileValue();
+
+    if ((lowerIndex == Long.MAX_VALUE) || (lowerIndex == 0)) {
+      return 0;
+    }
+
+    if (lowerIndex >= latestIndex) {
+      return 0;
+    }
+
+    return queue.countExcerpts(lowerIndex, latestIndex);
+
   }
 
   @Override
@@ -98,22 +186,39 @@ public class KinesisJournal extends AbstractExecutionThreadService {
   @Override
   protected void run() throws Exception {
 
-    ExcerptTailer tailer = queue.createTailer();
+    this.cleanup();
 
-    LongValue commitedIndex = queue.metaStore().acquireValueFor("kinesis.position", 0);
+    //
+
+    ExcerptTailer tailer = queue.createTailer();
+    this.latestIndex = tailer.toEnd().index();
 
     long index = commitedIndex.getVolatileValue();
 
-    log.info("commited index is {}", index);
+    //
 
     if (index > 0) {
+
       // note that we don't need to actually have a valid index, just want to be at least at this
       // index. a read will move us to the next one.
       tailer.moveToIndex(index);
+
+    }
+    else {
+
+      // no current position, so move to the start.
+      tailer.toStart();
+
     }
 
+    long pendingEvents =
+      tailer.index() >= latestIndex ? 0
+                                    : queue.countExcerpts(tailer.index(), latestIndex);
+
+    log.info("commited index for {} is {} with latest index at {} - {} events buffered.", this.streamName, index, latestIndex, pendingEvents);
+
     while (this.isRunning()) {
-      if (tryRead(tailer, commitedIndex)) {
+      if (tryRead(tailer)) {
         pauser.reset();
       }
       else {
@@ -147,7 +252,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
    * @return
    */
 
-  private boolean tryRead(ExcerptTailer tailer, LongValue commitedIndex) {
+  private boolean tryRead(ExcerptTailer tailer) {
 
     RecordAggregator agg = new RecordAggregator();
 
@@ -214,18 +319,18 @@ public class KinesisJournal extends AbstractExecutionThreadService {
         commitedIndex.setVolatileValue(nextIndex);
 
         this.compositeRegistry
-          .timer("putrecord", "pump", this.pumpId, "shardId", res.shardId())
+          .timer("putrecord", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
           .record(start.elapsed());
 
         this.compositeRegistry
-          .counter("records.count", "pump", this.pumpId, "shardId", res.shardId())
+          .counter("records.count", "pump", this.pumpId, "stream", this.streamName, "shardId", res.shardId())
           .increment(agg.getNumUserRecords());
 
         return;
       }
       catch (Exception ex) {
         // this only happens after Integer.MAX_VALUE retries has been reached. uefg!
-        log.warn("failed to call PutRecord", ex.getMessage());
+        log.warn("failed to call PutRecord: {}", ex.getMessage());
         Runtime.getRuntime().halt(1);
       }
 
