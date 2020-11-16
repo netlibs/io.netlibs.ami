@@ -34,7 +34,9 @@ import com.google.common.util.concurrent.ServiceManager;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry;
-import io.micrometer.datadog.DatadogMeterRegistry;
+import io.micrometer.statsd.StatsdConfig;
+import io.micrometer.statsd.StatsdFlavor;
+import io.micrometer.statsd.StatsdMeterRegistry;
 import io.netlibs.ami.client.AmiConnection;
 import io.netlibs.ami.client.AmiCredentials;
 import io.netlibs.ami.client.ImmutableAmiCredentials;
@@ -84,9 +86,6 @@ public class Main implements Callable<Integer> {
 
   @Option(names = { "-i" }, description = "instance identifier")
   private String instanceId;
-
-  @Option(names = { "--datadog-apikey" }, description = "optional datadog API key")
-  private String datadogApiKey;
 
   @Option(names = { "--ping-interval" }, description = "keepalive interval (in seconds).", defaultValue = "PT5S")
   private Duration pingInterval;
@@ -188,25 +187,23 @@ public class Main implements Callable<Integer> {
     // setup logging.
     this.compositeRegistry = new CompositeMeterRegistry();
 
-    // compositeRegistry.config()
-    // .meterFilter(
-    // new MeterFilter() {
-    // @Override
-    // public DistributionStatisticConfig configure(Meter.Id id, DistributionStatisticConfig config)
-    // {
-    // return DistributionStatisticConfig.builder()
-    // .percentiles(0.5, 0.75, 0.95, 0.99, 0.9999)
-    // .build()
-    // .merge(config);
-    // }
-    // });
-
     this.compositeRegistry.add(new LoggingMeterRegistry());
 
-    if (!Strings.isNullOrEmpty(this.datadogApiKey)) {
-      DatadogMeterRegistry datadogRegistry = new DatadogMeterRegistry(new LocalDataDogConfig(this.datadogApiKey), Clock.SYSTEM);
-      this.compositeRegistry.add(datadogRegistry);
-    }
+    StatsdConfig config = new StatsdConfig() {
+
+      @Override
+      public String get(String k) {
+        return null;
+      }
+
+      @Override
+      public StatsdFlavor flavor() {
+        return StatsdFlavor.DATADOG;
+      }
+
+    };
+
+    this.compositeRegistry.add(new StatsdMeterRegistry(config, Clock.SYSTEM));
 
     this.credentialsProvider = DefaultCredentialsProvider.create();
     this.region = new DefaultAwsRegionProviderChain().getRegion();
