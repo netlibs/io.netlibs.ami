@@ -76,7 +76,7 @@ public class KinesisJournal extends AbstractExecutionThreadService {
     this.queue =
       ChronicleQueue.singleBuilder(path)
         .storeFileListener(this.storeListener)
-        .rollCycle(RollCycles.TWENTY_MINUTELY)
+        .rollCycle(RollCycles.FIVE_MINUTELY)
         .build();
 
     this.credentialsProvider =
