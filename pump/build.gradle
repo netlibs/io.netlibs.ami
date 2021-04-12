@@ -61,7 +61,7 @@ dependencies {
   implementation 'software.amazon.awssdk:netty-nio-client'
   implementation 'software.amazon.kinesis:amazon-kinesis-client:2.3.1'
   implementation 'info.picocli:picocli:4.5.2'  
-  implementation ('net.openhft:chronicle-queue:5.20.110') {
+  implementation ('net.openhft:chronicle-queue:5.21ea42') {
     exclude group: 'net.openhft', module: 'affinity'
   }
   
