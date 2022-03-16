@@ -23,7 +23,7 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
 
   private static final ByteBuf PROTOCOL_PREFIX_BUF =
     Unpooled.wrappedBuffer(
-      "Asterisk Call Manager/6.".getBytes(StandardCharsets.US_ASCII)).asReadOnly();
+      "Asterisk Call Manager/".getBytes(StandardCharsets.US_ASCII)).asReadOnly();
 
   private static final ByteBuf FRAME_SEP = Unpooled.wrappedBuffer("\r\n\r\n".getBytes()).asReadOnly();
 
