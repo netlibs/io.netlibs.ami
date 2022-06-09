@@ -87,7 +87,7 @@ public class AmiClientHandler extends ChannelInitializer<Channel> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
 
-      if (ByteBufUtil.equals(msg, msg.readerIndex(), PROTOCOL_PREFIX_BUF, 0, PROTOCOL_PREFIX_BUF.readableBytes())) {
+      if (msg.readableBytes() > PROTOCOL_PREFIX_BUF.readableBytes() && ByteBufUtil.equals(msg.slice(msg.readerIndex(), PROTOCOL_PREFIX_BUF.readableBytes()), msg.readerIndex(), PROTOCOL_PREFIX_BUF, 0, PROTOCOL_PREFIX_BUF.readableBytes())) {
 
         ChannelPipeline p = ctx.pipeline();
 
