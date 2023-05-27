@@ -2,7 +2,7 @@ plugins {
     id 'application'
     id 'eclipse'
     id 'com.diffplug.eclipse.apt'
-    id 'com.google.cloud.tools.jib' version '2.6.0'
+    id 'com.google.cloud.tools.jib' version '3.3.2'
 }
 
 mainClassName = 'io.netlibs.ami.pump.Main'
@@ -11,7 +11,7 @@ mainClassName = 'io.netlibs.ami.pump.Main'
 jib {
   from {
     // or open9...
-    image = 'adoptopenjdk:11-jre-hotspot' 
+    image = 'eclipse-temurin:17-jre' 
   }
   container {
     jvmFlags = [ '--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED' ]
@@ -19,8 +19,8 @@ jib {
   }
   to {
     auth {
-      username = System.getenv('GITHUB_ACTOR')
-      password = System.getenv('GITHUB_TOKEN')
+      username = System.getenv('GITHUB_ACTOR') ?: ""
+      password = System.getenv('GITHUB_TOKEN') ?: ""
     }
   }
 }
@@ -29,12 +29,11 @@ jib {
 apply from: "${rootDir}/gradle/eclipse.gradle"
 
 repositories {
-  jcenter()
-  
+  mavenCentral()
 }
 
-eclipse.jdt.sourceCompatibility = 11
-eclipse.jdt.targetCompatibility = 11
+eclipse.jdt.sourceCompatibility = 17
+eclipse.jdt.targetCompatibility = 17
 
 application {
   applicationDefaultJvmArgs = ['--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED']
@@ -42,32 +41,26 @@ application {
 
 dependencies {
  
-  implementation platform('io.netty:netty-bom:4.1.79.Final')
-  implementation platform('software.amazon.awssdk:bom:2.17.257')
-  implementation platform('com.fasterxml.jackson:jackson-bom:2.13.3')
-  implementation platform('io.micrometer:micrometer-bom:1.9.3')
+  implementation platform('io.netty:netty-bom:4.1.93.Final')
+  implementation platform('software.amazon.awssdk:bom:2.20.73')
+  implementation platform('com.fasterxml.jackson:jackson-bom:2.15.1')
+  implementation platform('io.micrometer:micrometer-bom:1.11.0')
 
-  annotationProcessor 'org.immutables:value:2.9.0'
-  compileOnly 'org.immutables:value-annotations:2.9.0'
-  
-  // implementation platform('io.github.resilience4j:resilience4j-bom:1.6.1')
-  // implementation 'io.github.resilience4j:resilience4j-retry'
-  // implementation 'io.github.resilience4j:resilience4j-ratelimiter'
+  annotationProcessor 'org.immutables:value:2.9.3'
+  compileOnly 'org.immutables:value-annotations:2.9.3'
   
   implementation 'software.amazon.awssdk:auth'
   implementation 'software.amazon.awssdk:sts'
   implementation 'software.amazon.awssdk:sns'
   implementation 'software.amazon.awssdk:kinesis'
   implementation 'software.amazon.awssdk:netty-nio-client'
-  implementation 'software.amazon.kinesis:amazon-kinesis-client:2.4.2'
+  implementation 'software.amazon.kinesis:amazon-kinesis-client:2.5.0'
   
-  implementation 'info.picocli:picocli:4.6.3'
+  implementation 'info.picocli:picocli:4.7.3'
     
-  implementation ('net.openhft:chronicle-queue:5.23ea30') {
+  implementation ('net.openhft:chronicle-queue:5.24ea16') {
     exclude group: 'net.openhft', module: 'affinity'
   }
-  
-  //runtimeOnly 'net.openhft:affinity:3.20.0'
   
 }
 
@@ -87,13 +80,13 @@ dependencies {
   implementation 'io.micrometer:micrometer-core'
   implementation 'io.micrometer:micrometer-registry-statsd'
 
-  implementation 'org.slf4j:slf4j-api:2.0.0'
-  runtimeOnly 'org.slf4j:slf4j-simple:2.0.0'
+  implementation 'org.slf4j:slf4j-api:2.0.7'
+  runtimeOnly 'org.slf4j:slf4j-simple:2.0.7'
 }
 
 dependencies {
-  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
 }
 
 
