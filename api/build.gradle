@@ -1,24 +1,21 @@
 plugins {
     id 'java-library'
+	id 'com.diffplug.eclipse.apt'
+} 
+  
+dependencies {
+
+  implementation(platform('com.fasterxml.jackson:jackson-bom:2.15.3'))
+  implementation 'com.fasterxml.jackson.core:jackson-databind'
+  implementation 'com.fasterxml.jackson.core:jackson-annotations'
+  
+  
+  compileOnly 'org.immutables:value-annotations:2.10.0'
+  compileOnly 'jakarta.annotation:jakarta.annotation-api:2.1.1'
+  annotationProcessor 'org.immutables:value-processor:2.10.0'
+    
+  
 }
 
-apply plugin: 'maven-publish'
-
-publishing {
-  repositories {
-    maven {
-      name = "GitHubPackages"
-      url = uri("https://maven.pkg.github.com/netlibs/io.netlibs.ami")
-      credentials {
-        username = System.getenv("GITHUB_ACTOR")
-        password = System.getenv("GITHUB_TOKEN")
-      }
-    }
-  }
-  publications {
-    gpr(MavenPublication) {
-      from(components.java)
-    }
-  }
-}
-
+project.apply from: "${rootDir}/gradle/ossrh.gradle"
+description = 'Asterisk AMI API'

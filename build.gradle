@@ -1,23 +1,35 @@
 plugins {
   id 'eclipse'
-  id 'com.diffplug.eclipse.apt' version '3.25.0' apply false  
+  id 'com.diffplug.eclipse.apt' version '3.40.0' apply false    
+}
+
+def calculateReleaseUrl(version) {
+  if (rootProject.hasProperty('repositoryId')) {
+    return 'https://s01.oss.sonatype.org/service/local/staging/deployByRepositoryId/' + rootProject.repositoryId
+  }
+  else if (version.endsWith('SNAPSHOT')) {
+    return 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+  }
+  else {
+    return 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+  }
 }
 
 allprojects { project ->
 
   group = 'io.netlibs.ami'
-  version = 'master-SNAPSHOT'
+  version = '0.9.0-SNAPSHOT'
 
   repositories {
       mavenCentral()
   }
 
-  project.plugins.withId('java') {  
+  project.plugins.withId('java') {
     java {
       toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
       }
-    }  
+    }
   }
   
   project.apply plugin: 'eclipse'
@@ -32,7 +44,7 @@ eclipse.project.name = 'netlibs:ami'
 eclipse.synchronizationTasks configureBuildship
 
 wrapper {
-  gradleVersion = '8.1.1'
+  gradleVersion = '8.4'
   doLast {
     delete "${projectDir}/gradlew.bat"
   }

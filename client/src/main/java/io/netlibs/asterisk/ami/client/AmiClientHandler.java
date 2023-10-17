@@ -1,4 +1,4 @@
-package io.netlibs.ami.client;
+package io.netlibs.asterisk.ami.client;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;

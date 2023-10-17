@@ -1,4 +1,4 @@
-package io.netlibs.ami.client;
+package io.netlibs.asterisk.ami.client;
 
 import org.immutables.value.Value;
 
@@ -13,7 +13,7 @@ public interface AmiCredentials {
   @Value.Parameter(order = 1)
   String secret();
 
-  static ImmutableAmiCredentials of(String username, String secret) {
+  static ImmutableAmiCredentials of(final String username, final String secret) {
     return ImmutableAmiCredentials.of(username, secret);
   }
 

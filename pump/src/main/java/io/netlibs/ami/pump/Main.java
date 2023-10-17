@@ -37,12 +37,12 @@ import io.micrometer.core.instrument.logging.LoggingMeterRegistry;
 import io.micrometer.statsd.StatsdConfig;
 import io.micrometer.statsd.StatsdFlavor;
 import io.micrometer.statsd.StatsdMeterRegistry;
-import io.netlibs.ami.client.AmiConnection;
-import io.netlibs.ami.client.AmiCredentials;
-import io.netlibs.ami.client.ImmutableAmiCredentials;
 import io.netlibs.ami.netty.DefaultAmiFrame;
 import io.netlibs.ami.pump.model.ImmutablePumpId;
 import io.netlibs.ami.pump.utils.ObjectMapperFactory;
+import io.netlibs.asterisk.ami.client.AmiConnection;
+import io.netlibs.asterisk.ami.client.AmiCredentials;
+import io.netlibs.asterisk.ami.client.ImmutableAmiCredentials;
 import io.netty.channel.Channel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.timeout.IdleStateHandler;
@@ -70,7 +70,7 @@ public class Main implements Callable<Integer> {
       "/usr/local/asterisk/conf/manager.conf");
 
   @Option(names = { "-u" }, description = "AMI username")
-  private String username = "asterisk";
+  private final String username = "asterisk";
 
   @Option(names = { "-p" }, description = "AMI password")
   private String password;
@@ -79,7 +79,7 @@ public class Main implements Callable<Integer> {
   private Path configPath;
 
   @Option(names = { "-D" }, description = "data root path")
-  private Path dataRoot = Paths.get("ami2kinesis").toAbsolutePath();
+  private final Path dataRoot = Paths.get("ami2kinesis").toAbsolutePath();
 
   @Option(names = { "-t" }, description = "target to connect to", defaultValue = "localhost")
   private String targetHost;
@@ -94,19 +94,19 @@ public class Main implements Callable<Integer> {
   private Duration readIdle;
 
   @Option(names = { "--ignore-events" }, description = "events to ignore (comma seperated).")
-  private List<String> ignoreEventsInput = new ArrayList<>();
+  private final List<String> ignoreEventsInput = new ArrayList<>();
 
   @Option(names = { "--sns-control" }, description = "post control events to this sns topic arn.")
   private String snsControlEvents;
 
   @Option(names = { "--sns-attr-prefix" }, description = "message attribute prefix")
-  private Optional<String> messageAttrPrefix = Optional.empty();
+  private final Optional<String> messageAttrPrefix = Optional.empty();
 
   //
 
   //
   @ArgGroup(exclusive = false, multiplicity = "1..*")
-  private List<UpstreamConfig> upstreams = new LinkedList<>();
+  private final List<UpstreamConfig> upstreams = new LinkedList<>();
 
   //
   private SnsAsyncClient sns;
@@ -121,24 +121,24 @@ public class Main implements Callable<Integer> {
 
   public HostAndPort target() {
 
-    HostAndPort tt = HostAndPort.fromString(this.targetHost);
+    final HostAndPort tt = HostAndPort.fromString(this.targetHost);
 
     if (tt.hasPort()) {
       return tt;
     }
 
-    if (configPath == null) {
+    if (this.configPath == null) {
       return tt.withDefaultPort(5030);
     }
 
     try {
       // get port number from config too.
-      Ini ini = new Ini();
-      ini.load(new FileReader(configPath.toFile()));
-      Ini.Section general = ini.get("general");
+      final Ini ini = new Ini();
+      ini.load(new FileReader(this.configPath.toFile()));
+      final Ini.Section general = ini.get("general");
       return tt.withDefaultPort(UnsignedInts.parseUnsignedInt(general.get("port")));
     }
-    catch (Exception ex) {
+    catch (final Exception ex) {
       throw new RuntimeException(ex);
     }
 
@@ -147,31 +147,25 @@ public class Main implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
 
-    if (this.configPath != null) {
-      if (!Files.exists(this.configPath)) {
-        throw new IllegalArgumentException(String.format("specified config file %s does not exist", this.configPath));
-      }
+    if ((this.configPath != null) && !Files.exists(this.configPath)) {
+      throw new IllegalArgumentException(String.format("specified config file %s does not exist", this.configPath));
     }
 
     // dataRoot = dataRoot.t
 
     // try to find automatically.
-    if (this.password == null) {
+    if ((this.password == null) && (this.configPath == null)) {
 
-      if (this.configPath == null) {
-
-        for (String s : managerSerchPaths) {
-          this.configPath = Paths.get(s);
-          if (Files.exists(this.configPath)) {
-            break;
-          }
-
+      for (final String s : managerSerchPaths) {
+        this.configPath = Paths.get(s);
+        if (Files.exists(this.configPath)) {
+          break;
         }
 
-        if (!Files.exists(this.configPath)) {
-          throw new IllegalArgumentException(String.format("no password specified, but can't find asterisk manager config file."));
-        }
+      }
 
+      if (!Files.exists(this.configPath)) {
+        throw new IllegalArgumentException(String.format("no password specified, but can't find asterisk manager config file."));
       }
 
     }
@@ -189,10 +183,10 @@ public class Main implements Callable<Integer> {
 
     this.compositeRegistry.add(new LoggingMeterRegistry());
 
-    StatsdConfig config = new StatsdConfig() {
+    final StatsdConfig config = new StatsdConfig() {
 
       @Override
-      public String get(String k) {
+      public String get(final String k) {
         return null;
       }
 
@@ -212,15 +206,15 @@ public class Main implements Callable<Integer> {
 
     // generate a map of streams we will be writing to.
 
-    StsClient stsClient =
+    final StsClient stsClient =
       StsClient.builder()
-        .region(region)
+        .region(this.region)
         .build();
 
     this.streams =
       this.upstreams.stream()
         .map(upstream -> new KinesisJournal(
-          dataRoot,
+          this.dataRoot,
           upstream,
           this.instanceId,
           this.credentialsProvider,
@@ -231,14 +225,14 @@ public class Main implements Callable<Integer> {
 
     // streams
 
-    ArrayList<Service> services = new ArrayList<>();
+    final ArrayList<Service> services = new ArrayList<>();
 
-    CleanupService cleaner = new CleanupService(this.streams);
+    final CleanupService cleaner = new CleanupService(this.streams);
 
     services.addAll(this.streams);
     services.add(cleaner);
 
-    ServiceManager serviceManager = new ServiceManager(services);
+    final ServiceManager serviceManager = new ServiceManager(services);
     serviceManager.addListener(new AmiServiceManagerListener(), MoreExecutors.directExecutor());
     serviceManager.startAsync();
 
@@ -247,36 +241,36 @@ public class Main implements Callable<Integer> {
     if (!Strings.isNullOrEmpty(this.snsControlEvents)) {
       this.sns =
         SnsAsyncClient.builder()
-          .credentialsProvider(credentialsProvider)
-          .region(region)
+          .credentialsProvider(this.credentialsProvider)
+          .region(this.region)
           .asyncConfiguration(b -> b.advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR, Executors.newFixedThreadPool(2)))
           .build();
     }
 
     //
-    ObjectMapper mapper = ObjectMapperFactory.objectMapper();
+    final ObjectMapper mapper = ObjectMapperFactory.objectMapper();
 
     //
-    ImmutablePumpId pumpId = ImmutablePumpId.of(getStableInstanceID(), System.currentTimeMillis());
+    final ImmutablePumpId pumpId = ImmutablePumpId.of(this.getStableInstanceID(), System.currentTimeMillis());
 
-    notifyInit("INIT", pumpId);
+    this.notifyInit("INIT", pumpId);
 
-    NioEventLoopGroup eventLoop = new NioEventLoopGroup(1);
+    final NioEventLoopGroup eventLoop = new NioEventLoopGroup(1);
 
     try {
 
-      CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, target(), Duration.ofSeconds(5));
+      final CompletableFuture<Channel> connector = AmiConnection.connect(eventLoop, this.target(), Duration.ofSeconds(5));
 
       // includes negotiation, should be plenty of time for a well functioning system.
-      Channel ch = connector.get(10, TimeUnit.SECONDS);
+      final Channel ch = connector.get(10, TimeUnit.SECONDS);
 
       log.info("connected to '{}'", pumpId.id());
 
-      ImmutableAmiCredentials credentials = this.credentials();
+      final ImmutableAmiCredentials credentials = this.credentials();
 
-      AmiChannelHandler handler = new AmiChannelHandler(mapper, this.compositeRegistry, pumpId, ignoreEvents, streams);
+      final AmiChannelHandler handler = new AmiChannelHandler(mapper, this.compositeRegistry, pumpId, this.ignoreEvents, this.streams);
 
-      DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
+      final DefaultAmiFrame loginFrame = DefaultAmiFrame.newFrame();
       loginFrame.add("Action", "Login");
       loginFrame.add("ActionID", Long.toHexString(handler.nextActionId()));
       loginFrame.add("Username", credentials.username());
@@ -301,7 +295,7 @@ public class Main implements Callable<Integer> {
       log.info("channel closed");
 
     }
-    catch (Throwable e) {
+    catch (final Throwable e) {
 
       log.error("error pumping events", e.getMessage(), e);
 
@@ -315,7 +309,7 @@ public class Main implements Callable<Integer> {
       try {
         eventLoop.shutdownGracefully(5, 5, TimeUnit.SECONDS).get(30, TimeUnit.SECONDS);
       }
-      catch (Exception e) {
+      catch (final Exception e) {
         log.error("failed to gracefully shut event loop down");
       }
 
@@ -332,13 +326,13 @@ public class Main implements Callable<Integer> {
 
   }
 
-  private void notifyInit(String string, ImmutablePumpId pumpId) {
+  private void notifyInit(final String string, final ImmutablePumpId pumpId) {
     if (this.sns == null) {
       return;
     }
     try {
-      String prefix = this.messageAttrPrefix.map(val -> Strings.nullToEmpty(val)).orElse("");
-      ObjectNode metadata = JsonNodeFactory.instance.objectNode();
+      final String prefix = this.messageAttrPrefix.map(Strings::nullToEmpty).orElse("");
+      final ObjectNode metadata = JsonNodeFactory.instance.objectNode();
       this.sns.publish(req -> req
         .topicArn(this.snsControlEvents)
         .messageAttributes(ImmutableMap
@@ -372,7 +366,7 @@ public class Main implements Callable<Integer> {
         })
         .get(5, TimeUnit.SECONDS);
     }
-    catch (Exception ex) {
+    catch (final Exception ex) {
       log.warn("failed to notify SNS: {}", ex.getMessage(), ex);
       // don't exit on failure here, ignore but log.
     }
@@ -380,20 +374,20 @@ public class Main implements Callable<Integer> {
 
   private ImmutableAmiCredentials credentials() {
 
-    if ((configPath == null) || (this.password != null)) {
+    if ((this.configPath == null) || (this.password != null)) {
       return AmiCredentials.of(this.username, this.password);
     }
 
     try {
-      Ini ini = new Ini();
-      ini.load(new FileReader(configPath.toFile()));
-      Ini.Section section = ini.get(username);
+      final Ini ini = new Ini();
+      ini.load(new FileReader(this.configPath.toFile()));
+      final Ini.Section section = ini.get(this.username);
       if (section == null) {
-        throw new IllegalArgumentException(String.format("config file [%s] does not contain user '%s'", configPath, this.username));
+        throw new IllegalArgumentException(String.format("config file [%s] does not contain user '%s'", this.configPath, this.username));
       }
       return AmiCredentials.of(section.getName(), section.get("secret"));
     }
-    catch (Exception ex) {
+    catch (final Exception ex) {
       throw new RuntimeException(ex);
     }
 
@@ -404,15 +398,15 @@ public class Main implements Callable<Integer> {
       return this.instanceId;
     }
     try {
-      InetAddress inetaddress = InetAddress.getLocalHost();
+      final InetAddress inetaddress = InetAddress.getLocalHost();
       return inetaddress.getHostAddress();
     }
-    catch (Exception err) {
+    catch (final Exception err) {
       throw new RuntimeException(err);
     }
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(final String[] args) throws Exception {
     new CommandLine(new Main()).execute(args);
   }
 

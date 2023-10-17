@@ -1,4 +1,4 @@
-package io.netlibs.ami.client;
+package io.netlibs.asterisk.ami.client;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

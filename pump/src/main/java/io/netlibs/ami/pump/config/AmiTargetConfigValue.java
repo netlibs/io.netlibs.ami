@@ -7,8 +7,8 @@ import org.immutables.value.Value;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.net.HostAndPort;
 
-import io.netlibs.ami.client.AmiCredentials;
 import io.netlibs.ami.pump.model.ImmutableAmiTarget;
+import io.netlibs.asterisk.ami.client.AmiCredentials;
 
 @Value.Immutable
 @JsonDeserialize(builder = ImmutableAmiTargetConfigValue.Builder.class)

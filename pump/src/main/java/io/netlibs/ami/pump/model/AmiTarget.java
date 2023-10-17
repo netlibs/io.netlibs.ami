@@ -6,7 +6,7 @@ import org.immutables.value.Value;
 
 import com.google.common.net.HostAndPort;
 
-import io.netlibs.ami.client.AmiCredentials;
+import io.netlibs.asterisk.ami.client.AmiCredentials;
 
 @Value.Immutable
 public interface AmiTarget {

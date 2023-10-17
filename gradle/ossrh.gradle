@@ -1,0 +1,107 @@
+apply plugin: 'signing'
+apply plugin: 'maven-publish'
+
+signing {
+  useGpgCmd()
+  sign publishing.publications
+}
+
+def calculateReleaseUrl(version) {
+  if (rootProject.hasProperty('repositoryId')) {
+    return 'https://s01.oss.sonatype.org/service/local/staging/deployByRepositoryId/' + rootProject.repositoryId
+  }
+  else if (version.endsWith('SNAPSHOT')) {
+    return 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+  }
+  else {
+    // https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/
+    return 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+  }
+}
+
+
+project.plugins.withId('java') {  
+
+  afterEvaluate {
+
+    publishing {
+      publications {
+        maven(MavenPublication) {
+          pom {
+            name = project.group + ":" + project.name
+            url = 'https://github.com/netlibs/io.netlibs.ami/'
+            afterEvaluate {
+              // description is not available until evaluated.
+              description = project.description
+            }
+            scm {
+              connection = 'scm:git:https://github.com/netlibs/io.netlibs.ami.git'
+              developerConnection = 'scm:git:https://github.com/netlibs/io.netlibs.ami.git'
+              url = 'https://github.com/netlibs/io.netlibs.ami'
+            }
+            licenses {
+              license {
+                name = 'The Apache License, Version 2.0'
+                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+              }
+            }
+            developers {
+              developer {
+                id = 'zourzouvillys'
+                name = 'Theo Zourzouvillys'
+                email = 'theo@zrz.io'
+              }
+            }
+          }
+        }
+      }
+
+      repositories {
+        maven {
+          if (rootProject.hasProperty('repositoryDir')) {
+            url = new File(rootProject.repositoryDir).toURI()
+          }
+          else {
+            credentials {
+              if (rootProject.hasProperty('ossrhUsername') && rootProject.hasProperty('ossrhPassword')) {
+                username = rootProject.ossrhUsername
+                password = rootProject.ossrhPassword
+              }
+            }
+            url = calculateReleaseUrl(version)        
+          }
+        }
+      }
+      
+    }
+
+    publishing {
+      publications {
+        maven {
+
+          from components.java
+          
+          artifact sourcesJar {
+            archiveClassifier = 'sources'
+          }
+      
+          artifact javadocJar {
+            archiveClassifier = 'javadoc'
+          }
+          
+        }
+      }
+    }
+  }
+
+  task javadocJar(type: Jar) {
+      archiveClassifier = 'javadoc'
+      from javadoc
+  }
+
+  task sourcesJar(type: Jar) {
+      archiveClassifier = 'sources'
+      from sourceSets.main.allSource
+  }  
+
+}
