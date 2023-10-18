@@ -1,6 +1,7 @@
 plugins {
   id 'eclipse'
-  id 'com.diffplug.eclipse.apt' version '3.40.0' apply false    
+  id 'com.diffplug.eclipse.apt' version '3.40.0' apply false
+  id 'io.codearte.nexus-staging' version '0.30.0' apply false 
 }
 
 def calculateReleaseUrl(version) {
@@ -18,7 +19,7 @@ def calculateReleaseUrl(version) {
 allprojects { project ->
 
   group = 'io.netlibs.ami'
-  version = '0.9.0-SNAPSHOT'
+  version = '0.10.0'
 
   repositories {
       mavenCentral()
@@ -51,3 +52,25 @@ wrapper {
 }
 
 
+
+/*
+ * Sonatype Staging Finalization
+ * ====================================================
+ *
+ * When publishing to Maven Central, we need to close the staging
+ * repository and release the artifacts after they have been
+ * validated. This configuration is for the root project because
+ * it operates at the "group" level.
+ */
+ 
+if (project.hasProperty("ossrhUsername") && project.hasProperty("ossrhPassword")) {
+  apply plugin: "io.codearte.nexus-staging"
+  nexusStaging {
+    serverUrl = "https://s01.oss.sonatype.org/service/local/"
+    packageGroup = "io.netlibs"
+    // stagingRepositoryId
+    stagingProfileId = "395cd0d126dacd"
+    username = project.property("ossrhUsername")
+    password = project.property("ossrhPassword")
+  }
+}
