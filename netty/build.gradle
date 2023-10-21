@@ -2,18 +2,10 @@ plugins {
     id 'java-library'
 }
 
-project.apply from: "${rootDir}/gradle/ossrh.gradle"
-
 dependencies {
   implementation 'com.google.guava:guava:32.1.3-jre'
   implementation 'org.slf4j:slf4j-api:2.0.9'
-}
-
-dependencies {
   api project(':api')
-}
-
-dependencies {
   api platform('io.netty:netty-bom:4.1.100.Final')
   api 'io.netty:netty-handler'
   api 'io.netty:netty-transport'
