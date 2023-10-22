@@ -28,6 +28,8 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.collect.Maps;
 import com.google.common.net.HostAndPort;
+import com.google.common.net.HttpHeaders;
+import com.google.common.net.MediaType;
 
 import io.netlibs.asterisk.ari.client.AriClient;
 import io.netlibs.asterisk.ari.commands.ChannelEndpoint;
@@ -42,6 +44,11 @@ import io.netlibs.asterisk.ari.events.Event;
 
 public final class HttpAriClient implements AriClient {
 
+  private static final String CHANNELS = "channels";
+  private static final String PLAYBACKS = "playbacks";
+  private static final String LIVE = "live";
+  private static final String RECORDINGS = "recordings";
+
   private static final Logger LOG = LoggerFactory.getLogger(HttpAriClient.class);
   private static final ObjectMapper mapper = new ObjectMapper().registerModule(new Jdk8Module()).registerModule(new JavaTimeModule());
 
@@ -49,7 +56,7 @@ public final class HttpAriClient implements AriClient {
   private final URI baseUri;
 
   public HttpAriClient(final String baseUri, final HttpClient httpClient) {
-    this.baseUri = URI.create(baseUri);
+    this.baseUri = URI.create(baseUri.replaceFirst("/*$", ""));
     this.httpClient = httpClient;
   }
 
@@ -103,7 +110,7 @@ public final class HttpAriClient implements AriClient {
         params,
         TypeFactory.defaultInstance().constructMapType(HashMap.class, String.class, String.class));
 
-    final URI uri = Utils.makeUri(this.baseUri, List.of("channels", "create"), args);
+    final URI uri = Utils.makeUri(this.baseUri, List.of(CHANNELS, "create"), args);
 
     record Payload(Map<String, String> variables) {
     }
@@ -111,7 +118,7 @@ public final class HttpAriClient implements AriClient {
     final HttpRequest req =
       HttpRequest.newBuilder()
         .uri(uri)
-        .header("content-type", "application/json")
+        .header(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
         .POST(HttpUtils.jsonPublisher(new Payload(params.variables())))
         .build();
 
@@ -130,7 +137,7 @@ public final class HttpAriClient implements AriClient {
 
     final HttpRequest request =
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId), queryParams))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId), queryParams))
         .DELETE()
         .build();
 
@@ -142,7 +149,7 @@ public final class HttpAriClient implements AriClient {
   public void answer(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "answer")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "answer")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -151,7 +158,7 @@ public final class HttpAriClient implements AriClient {
   public void ring(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "ring")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "ring")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -160,7 +167,7 @@ public final class HttpAriClient implements AriClient {
   public void ringStop(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "ring")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "ring")))
         .DELETE()
         .build());
   }
@@ -169,7 +176,7 @@ public final class HttpAriClient implements AriClient {
   public void hold(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "hold")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "hold")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -178,7 +185,7 @@ public final class HttpAriClient implements AriClient {
   public void unhold(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "hold")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "hold")))
         .DELETE()
         .build());
   }
@@ -187,7 +194,7 @@ public final class HttpAriClient implements AriClient {
   public void startMoh(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "moh")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "moh")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -196,7 +203,7 @@ public final class HttpAriClient implements AriClient {
   public void stopMoh(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "moh")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "moh")))
         .DELETE()
         .build());
   }
@@ -205,7 +212,7 @@ public final class HttpAriClient implements AriClient {
   public void startSilence(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "silence")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "silence")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -214,7 +221,7 @@ public final class HttpAriClient implements AriClient {
   public void stopSilence(final String channelId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "silence")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "silence")))
         .DELETE()
         .build());
   }
@@ -225,7 +232,7 @@ public final class HttpAriClient implements AriClient {
     params.put("dtmf", dtmf);
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "dtmf"), params))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "dtmf"), params))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -236,7 +243,7 @@ public final class HttpAriClient implements AriClient {
     }
     return this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "variable"), Map.of("variable", variable)))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "variable"), Map.of("variable", variable)))
         .GET()
         .build(),
       HttpUtils.bodyReader(VariableResponse.class))
@@ -247,7 +254,7 @@ public final class HttpAriClient implements AriClient {
   public void setChannelVar(final String channelId, final String variable, final String value) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "variable"), Map.of("variable", variable, "value", value)))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "variable"), Map.of("variable", variable, "value", value)))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -258,7 +265,7 @@ public final class HttpAriClient implements AriClient {
     final Map<String, String> args = HttpUtils.makeArgs(params);
     return this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "snoop"), args))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "snoop"), args))
         .POST(BodyPublishers.noBody())
         .build(),
       HttpUtils.bodyReader(Channel.class));
@@ -275,8 +282,8 @@ public final class HttpAriClient implements AriClient {
 
     return this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "snoop"), args))
-        .header("content-type", "application/json")
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "snoop"), args))
+        .header(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
         .POST(HttpUtils.jsonPublisher(new Payload(params.variables())))
         .build(),
       HttpUtils.bodyReader(Channel.class));
@@ -288,8 +295,8 @@ public final class HttpAriClient implements AriClient {
     final Map<String, String> args = HttpUtils.makeArgs(params);
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "record"), args))
-        .header("content-type", "application/json")
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "record"), args))
+        .header(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -297,7 +304,7 @@ public final class HttpAriClient implements AriClient {
   public Channel channel(final String channelId) throws InterruptedException {
     return this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId)))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId)))
         .GET()
         .build(),
       HttpUtils.bodyReader(Channel.class));
@@ -307,7 +314,7 @@ public final class HttpAriClient implements AriClient {
   public void dial(final DialParams params) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", params.channelId(), "dial")))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, params.channelId(), "dial")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -316,7 +323,7 @@ public final class HttpAriClient implements AriClient {
   public void redirect(final String channelId, final ChannelEndpoint endpoint) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "redirect"), Map.of("endpoint", endpoint.toString())))
+        .uri(Utils.makeUri(this.baseUri, List.of(CHANNELS, channelId, "redirect"), Map.of("endpoint", endpoint.toString())))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -419,7 +426,13 @@ public final class HttpAriClient implements AriClient {
 
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("channels", channelId, "play", playbackId), Map.of("media", media)))
+        .uri(Utils.makeUri(this.baseUri,
+          List.of(
+            CHANNELS,
+            channelId,
+            "play",
+            playbackId),
+          Map.of("media", media)))
         .POST(BodyPublishers.noBody())
         .build());
 
@@ -429,7 +442,7 @@ public final class HttpAriClient implements AriClient {
   public void controlPlayback(final String playbackId, final PlaybackOperation op) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("playbacks", playbackId), Map.of("operation", op.toString().toLowerCase())))
+        .uri(Utils.makeUri(this.baseUri, List.of(PLAYBACKS, playbackId), Map.of("operation", op.toString().toLowerCase())))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -438,7 +451,7 @@ public final class HttpAriClient implements AriClient {
   public void stopPlayback(final String playbackId) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("playbacks", playbackId)))
+        .uri(Utils.makeUri(this.baseUri, List.of(PLAYBACKS, playbackId)))
         .DELETE()
         .build());
   }
@@ -447,7 +460,7 @@ public final class HttpAriClient implements AriClient {
   public void controlRecording(final String recordingName, final RecordingOperation operation) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("recordings", "live", recordingName, operation.toString().toLowerCase())))
+        .uri(Utils.makeUri(this.baseUri, List.of(RECORDINGS, LIVE, recordingName, operation.toString().toLowerCase())))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -456,7 +469,7 @@ public final class HttpAriClient implements AriClient {
   public void stopRecording(final String recordingName) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("recordings", "live", recordingName, "stop")))
+        .uri(Utils.makeUri(this.baseUri, List.of(RECORDINGS, LIVE, recordingName, "stop")))
         .POST(BodyPublishers.noBody())
         .build());
   }
@@ -465,7 +478,7 @@ public final class HttpAriClient implements AriClient {
   public void cancelRecording(final String recordingName) throws InterruptedException {
     this.send(
       HttpRequest.newBuilder()
-        .uri(Utils.makeUri(this.baseUri, List.of("recordings", "live", recordingName)))
+        .uri(Utils.makeUri(this.baseUri, List.of(RECORDINGS, LIVE, recordingName)))
         .DELETE()
         .build());
   }
