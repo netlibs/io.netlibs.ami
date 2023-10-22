@@ -2,11 +2,22 @@ package io.netlibs.asterisk.ari.stasis;
 
 import java.util.List;
 
+import io.netlibs.asterisk.ari.client.AriClient;
 import io.netlibs.asterisk.ari.events.Channel;
 import io.netlibs.asterisk.ari.events.Event;
 import io.netlibs.asterisk.ari.events.StasisStart;
 
 public interface StasisContext extends ChannelContext {
+
+  /**
+   * The ARI client for this channel.
+   */
+
+  AriClient ari();
+
+  /**
+   *
+   */
 
   record StartParams(String application, List<String> arguments) {
   }

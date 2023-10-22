@@ -3,7 +3,6 @@ package io.netlibs.asterisk.ari.commands;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 
 import org.immutables.value.Value;
 
@@ -23,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 abstract class AbstractOriginateParams {
 
   @JsonProperty
-  public abstract String endpoint();
+  public abstract ChannelEndpoint endpoint();
 
   @JsonProperty
   public abstract Optional<String> app();
@@ -40,7 +39,7 @@ abstract class AbstractOriginateParams {
   public abstract Optional<String> extension();
 
   @JsonProperty
-  public abstract OptionalLong priority();
+  public abstract OptionalInt priority();
 
   @JsonProperty
   public abstract Optional<String> label();

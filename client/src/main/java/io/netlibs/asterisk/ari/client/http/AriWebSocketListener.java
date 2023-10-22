@@ -1,4 +1,4 @@
-package io.netlibs.asterisk.ari.client;
+package io.netlibs.asterisk.ari.client.http;
 
 import java.net.http.WebSocket;
 import java.util.Objects;

@@ -12,11 +12,11 @@ public record ChannelDtmfReceived(
     /** channel: Channel */
     Channel channel,
 
-    String digit,
+    // dtmf only a single char at once.
+    char digit,
 
     @JsonProperty("duration_ms") int durationMs
 
 ) implements Event, ChannelEvent {
 
 }
-

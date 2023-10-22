@@ -1,24 +1,28 @@
-package io.netlibs.asterisk.ari.client;
+package io.netlibs.asterisk.ari.client.http;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest.BodyPublisher;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandler;
 import java.net.http.HttpResponse.BodySubscriber;
 import java.net.http.HttpResponse.BodySubscribers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -85,13 +89,12 @@ public class HttpUtils {
           return extractor.apply(objectMapper.readValue(body, targetType));
         }
         catch (final JsonProcessingException e) {
-          // TODO Auto-generated catch block
-          throw new RuntimeException(e);
+          throw new AriException(e);
         }
       });
   }
 
-  public static <W> BodyHandler<W> asJSONHandler(final ObjectMapper objectMapper, final Class<W> targetType) {
+  static <W> BodyHandler<W> asJSONHandler(final ObjectMapper objectMapper, final Class<W> targetType) {
     return res -> BodySubscribers.mapping(
       BodySubscribers.ofString(StandardCharsets.UTF_8),
       body -> {
@@ -102,26 +105,23 @@ public class HttpUtils {
           return objectMapper.readValue(body, targetType);
         }
         catch (final JsonProcessingException e) {
-          // TODO Auto-generated catch block
-          throw new RuntimeException(e);
+          throw new AriException(e);
         }
       });
   }
 
-  public static <W> BodySubscriber<Supplier<W>> asJSON(final ObjectMapper objectMapper, final Class<W> targetType) {
+  static <W> BodySubscriber<Supplier<W>> asJSON(final ObjectMapper objectMapper, final Class<W> targetType) {
     final BodySubscriber<InputStream> upstream = BodySubscribers.ofInputStream();
-    final BodySubscriber<Supplier<W>> downstream =
-      BodySubscribers.mapping(
-        upstream,
-        (final InputStream is) -> () -> {
-          try (InputStream stream = is) {
-            return objectMapper.readValue(stream, targetType);
-          }
-          catch (final IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
-    return downstream;
+    return BodySubscribers.mapping(
+      upstream,
+      (final InputStream is) -> () -> {
+        try (InputStream stream = is) {
+          return objectMapper.readValue(stream, targetType);
+        }
+        catch (final IOException e) {
+          throw new AriException(e);
+        }
+      });
   }
 
   public static ObjectMapper jsonMapper() {
@@ -129,5 +129,24 @@ public class HttpUtils {
   }
 
   private static final ObjectMapper mapper = new ObjectMapper().registerModules(new Jdk8Module(), new JavaTimeModule());
+
+  static <T> BodyHandler<T> bodyReader(final Class<T> klass) {
+    return asJSONHandler(jsonMapper(), klass);
+  }
+
+  static <T> BodyPublisher jsonPublisher(final T payload) {
+    try {
+      return BodyPublishers.ofString(mapper.writeValueAsString(payload), StandardCharsets.UTF_8);
+    }
+    catch (final JsonProcessingException e) {
+      throw new AriException(e);
+    }
+  }
+
+  public static <T> Map<String, String> makeArgs(final T params) {
+    return mapper.convertValue(
+      params,
+      TypeFactory.defaultInstance().constructMapType(HashMap.class, String.class, String.class));
+  }
 
 }

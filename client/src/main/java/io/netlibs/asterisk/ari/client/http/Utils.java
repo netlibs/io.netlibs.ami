@@ -1,4 +1,4 @@
-package io.netlibs.asterisk.ari.client;
+package io.netlibs.asterisk.ari.client.http;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -31,11 +31,15 @@ class Utils {
     }
   }
 
-  public static URI makeUri(final String baseUri, final List<String> path) {
+  static URI makeUri(final String baseUri, final List<String> path) {
     return makeUri(baseUri, path, Map.of());
   }
 
-  public static URI makeUri(final String baseUri, final List<String> path, final Map<String, String> args) {
+  static URI makeUri(final URI baseUri, final List<String> path) {
+    return makeUri(baseUri, path, Map.of());
+  }
+
+  static URI makeUri(final String baseUri, final List<String> path, final Map<String, String> args) {
 
     final StringBuilder sb = new StringBuilder();
 
@@ -50,7 +54,7 @@ class Utils {
 
   }
 
-  public static URI makeUri(final URI baseUri, final List<String> path, final Map<String, String> args) {
+  static URI makeUri(final URI baseUri, final List<String> path, final Map<String, String> args) {
     return makeUri(baseUri.toASCIIString(), path, args);
   }
 

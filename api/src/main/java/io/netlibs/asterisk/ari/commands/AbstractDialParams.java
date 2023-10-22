@@ -1,6 +1,7 @@
 package io.netlibs.asterisk.ari.commands;
 
 import java.time.Duration;
+import java.util.Optional;
 
 import org.immutables.value.Value;
 
@@ -20,8 +21,8 @@ abstract class AbstractDialParams {
 
   public abstract String channelId();
 
-  public abstract String callerId();
+  public abstract Optional<String> callerId();
 
-  public abstract Duration timeout();
+  public abstract Optional<Duration> timeout();
 
 }

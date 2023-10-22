@@ -7,6 +7,9 @@ import io.netlibs.asterisk.ari.events.Channel;
 
 final class AriLogic {
 
+  private AriLogic() {
+  }
+
   private static final Map<Channel.State, Set<Channel.State>> allowedTransitions =
     Map.ofEntries(
 

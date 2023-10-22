@@ -90,7 +90,8 @@ class StasisAppDispatcher implements Consumer<Event>, StasisAppRegistration {
     try {
 
       this.driver.stasisStart(ctx);
-      LOG.info("Statis completed for channel {}", f.channel().id());
+
+      LOG.info("Stasis app driver completed for channel {}", f.channel().id());
 
     }
     catch (final Exception ex) {

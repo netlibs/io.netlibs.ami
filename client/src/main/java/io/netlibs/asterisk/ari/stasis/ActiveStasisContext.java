@@ -1,10 +1,12 @@
 package io.netlibs.asterisk.ari.stasis;
 
+import java.time.Duration;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.netlibs.asterisk.ari.client.AriClient;
 import io.netlibs.asterisk.ari.events.Channel;
+import io.netlibs.asterisk.ari.events.ChannelDtmfReceived;
 import io.netlibs.asterisk.ari.events.ChannelEvent;
 import io.netlibs.asterisk.ari.events.Event;
 import io.netlibs.asterisk.ari.events.StasisEnd;
@@ -15,9 +17,6 @@ class ActiveStasisContext extends AbstractChannelContext implements StasisContex
   final LinkedTransferQueue<Event> queue = new LinkedTransferQueue<>();
 
   private final AriClient ari;
-  private final Thread thread;
-
-  private final StasisStart start;
 
   // set in the receiver thread as soon as we receive StasisEnd. it's also added into the queue.
   // having here allows us to do lookahead easily to see if the channel has already been ended for
@@ -35,8 +34,6 @@ class ActiveStasisContext extends AbstractChannelContext implements StasisContex
 
     super(ari, startEvent.channel());
 
-    this.start = startEvent;
-    this.thread = thread;
     this.ari = ari;
 
     this.channel.set(startEvent.channel());
@@ -53,9 +50,13 @@ class ActiveStasisContext extends AbstractChannelContext implements StasisContex
 
   }
 
+  @Override
+  public AriClient ari() {
+    return this.ari;
+  }
+
   /**
-   * true if we have received a StasisEnd. this is false if we end the call but have not yet
-   * received the StasisEnd.
+   * true if we have received a StasisEnd. this is false if we end the call but have not yet received the StasisEnd.
    */
 
   public boolean hasEnded() {
@@ -71,6 +72,9 @@ class ActiveStasisContext extends AbstractChannelContext implements StasisContex
       case final StasisEnd f:
         this.end.set(f);
         this.queue.add(e);
+        break;
+      case final ChannelDtmfReceived dtmf:
+        this.dtmfBuffer.add(new DtmfEvent(DtmfDigit.of(dtmf.digit()), Duration.ofMillis(dtmf.durationMs())));
         break;
       case final ChannelEvent f:
         this.channel.set(f.channel());

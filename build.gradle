@@ -32,6 +32,18 @@ allprojects { project ->
       }
     }
     project.apply from: "${rootDir}/gradle/ossrh.gradle"
+    
+
+    tasks.withType(JavaCompile) {
+      options.encoding = 'UTF-8'
+      options.compilerArgs += "--enable-preview" // for structured concurrency in 21.
+    }
+    
+    test {
+      jvmArgs(['--enable-preview'])
+      useJUnitPlatform()
+    }
+    
   }
   
   project.apply plugin: 'eclipse'
