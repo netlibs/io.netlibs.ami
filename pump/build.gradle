@@ -40,7 +40,7 @@ dependencies {
  
   implementation platform('io.netty:netty-bom:4.1.100.Final')
   implementation platform('software.amazon.awssdk:bom:2.20.162')
-  implementation platform('com.fasterxml.jackson:jackson-bom:2.15.2')
+  implementation platform('com.fasterxml.jackson:jackson-bom:2.15.3')
   implementation platform('io.micrometer:micrometer-bom:1.11.5')
 
   annotationProcessor 'org.immutables:value:2.10.0'
